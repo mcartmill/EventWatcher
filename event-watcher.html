@@ -1,0 +1,2656 @@
+<!DOCTYPE html>
+<!--
+  Copyright (c) 2026 Cartmill Technologies LLC. All rights reserved.
+  This software and its source code are the property of Cartmill Technologies LLC.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="copyright" content="© 2026 Cartmill Technologies LLC">
+<meta name="author" content="Cartmill Technologies LLC">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Event watcher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  :root {
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    --bg: #EEF3F8;
+    --surface: #FFFFFF;
+    --ink: #1B2A41;
+    --muted: #5B6B82;
+    --line: #C9D6E3;
+    --accent: #1F7A8C;
+    --accent-soft: #D7ECEF;
+    --warn: #A4462E;
+    --soon-bg: #FFF1CC;  --soon: #9A6700;
+    --live-bg: #D9F2E1;  --live: #1E7B45;
+    --end-bg: #FBDCD7;   --end: #B42318;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121A26; --surface: #1A2433; --ink: #E4ECF5; --muted: #9AAAC0; --line: #2E3B4F;
+      --accent: #5CC1D1; --accent-soft: #1D3A43; --warn: #F0937A;
+      --soon-bg: #3B3116; --soon: #F2C14E;
+      --live-bg: #16392A; --live: #5FD08F;
+      --end-bg: #47201B;  --end: #FF8A7A;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121A26; --surface: #1A2433; --ink: #E4ECF5; --muted: #9AAAC0; --line: #2E3B4F;
+    --accent: #5CC1D1; --accent-soft: #1D3A43; --warn: #F0937A;
+    --soon-bg: #3B3116; --soon: #F2C14E;
+    --live-bg: #16392A; --live: #5FD08F;
+    --end-bg: #47201B;  --end: #FF8A7A;
+  }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  *, *::before, *::after { box-sizing: inherit; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.5;
+  }
+  main { max-width: 62rem; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+  h1 {
+    font-family: "Bricolage Grotesque", "Figtree", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: clamp(2rem, 6vw, 3.25rem);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.5rem;
+  }
+  .intro { color: var(--muted); margin: 0 0 1.75rem; max-width: 36rem; }
+
+  .drop {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 1rem;
+    padding: 1.25rem 1.5rem;
+    border: 2px dashed var(--line); border-radius: 14px;
+    background: var(--surface);
+    transition: border-color .15s, background .15s;
+  }
+  .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+  .imports { border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+  .imports.over { border-color: var(--accent); background: var(--accent-soft); }
+  .imports > summary {
+    display: flex; align-items: baseline; gap: 0.75rem; flex-wrap: wrap;
+    padding: 0.55rem 0.9rem; cursor: pointer; list-style: none; font-size: 0.9rem;
+  }
+  .imports > summary::-webkit-details-marker { display: none; }
+  .imports > summary::before {
+    content: ""; align-self: center; width: 0; height: 0;
+    border-style: solid; border-width: 0.35rem 0 0.35rem 0.5rem; border-color: transparent transparent transparent var(--ink);
+    transition: transform .15s;
+  }
+  .imports[open] > summary::before { transform: rotate(90deg); }
+  .imports > summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 12px; }
+  .imports-title { font-weight: 700; }
+  .imports-sum { color: var(--muted); min-width: 0; }
+  .imports-sum.error { color: var(--warn); font-weight: 600; }
+  .imports[open] { padding-bottom: 0.75rem; }
+  .imports .drop { margin: 0 0.75rem; padding: 0.6rem 0.9rem; gap: 0.6rem; border-width: 1.5px; }
+  .imports .drop p { font-size: 0.85rem; }
+  .imports .drop .btn, .imports .drop button { font-size: 0.85rem; padding: 0.4rem 0.9rem; }
+  .imports > .status, .imports > .logbar { margin-left: 0.9rem; margin-right: 0.9rem; }
+  .drop p { margin: 0; flex: 1 1 14rem; color: var(--muted); }
+  .drop strong { color: var(--ink); font-weight: 600; }
+  .loaded .drop { padding: 0.75rem 1rem; }
+  .loaded .intro { display: none; }
+
+  button, .btn {
+    font: inherit; font-weight: 600;
+    border-radius: 999px; padding: 0.6rem 1.2rem;
+    cursor: pointer; border: 1.5px solid var(--accent);
+  }
+  .btn-primary { background: var(--accent); color: var(--surface); }
+  .btn-ghost { background: transparent; color: var(--accent); }
+  button:focus-visible, .btn:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; }
+
+  /* Countdown */
+  .countdown {
+    display: none;
+    margin-top: 1.5rem;
+    padding: 1.25rem 1.5rem;
+    border-radius: 18px;
+    background: var(--ink);
+    color: var(--bg);
+    gap: 0.25rem 2rem;
+    align-items: end;
+    flex-wrap: wrap;
+  }
+  .loaded .countdown { display: flex; }
+  .countdown .clock {
+    font-family: "Bricolage Grotesque", "Figtree", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: clamp(2.75rem, 11vw, 4.5rem);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  .countdown .next { flex: 1 1 14rem; min-width: 0; padding-bottom: 0.3rem; }
+  .countdown .next-label { opacity: 0.75; font-size: 0.95rem; margin: 0; }
+  .countdown .next-title { font-size: 1.25rem; font-weight: 700; margin: 0; padding: 0; list-style: none; overflow-wrap: anywhere; }
+  .countdown .next-title li + li { margin-top: 0.15rem; }
+  .countdown .live-now { flex-basis: 100%; margin: 0.6rem 0 0; font-size: 0.95rem; opacity: 0.85; }
+  .countdown.soon .clock { color: var(--soon-bg); }
+
+  .legend { display: none; flex-direction: column; gap: 0.35rem; margin: 1rem 0 0; font-size: 0.875rem; color: var(--muted); }
+  .loaded .legend { display: flex; }
+  .legend ul { display: flex; flex-wrap: wrap; gap: 0.35rem 1.25rem; margin: 0; padding: 0; list-style: none; }
+  .legend li { display: flex; align-items: center; gap: 0.4rem; }
+  .swatch { width: 0.9rem; height: 0.9rem; border-radius: 4px; border: 2px solid; }
+
+  .settings { display: none; flex-wrap: wrap; gap: 1rem; align-items: center; margin-top: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid var(--line); }
+  .loaded .settings { display: flex; }
+  input[type="search"] {
+    font: inherit; color: var(--ink); background: var(--surface);
+    border: 1px solid var(--line); border-radius: 8px;
+    padding: 0.45rem 0.7rem; flex: 1 1 14rem; max-width: 22rem;
+  }
+  .restore { font-size: 0.9rem; padding: 0.4rem 0.9rem; }
+  .restore[hidden], .export[hidden] { display: none; }
+  .export { font-size: 0.9rem; padding: 0.4rem 0.9rem; margin-left: auto; }
+
+  .awake { display: flex; align-items: center; gap: 0.4rem; font-size: 0.9rem; color: var(--muted); }
+  .awake input { width: 1rem; height: 1rem; accent-color: var(--accent); }
+  .awake select { font: inherit; font-size: 0.85rem; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 0.15rem 0.3rem; }
+  .awake-note { font-size: 0.8rem; }
+  .alerts-btn { font-size: 0.9rem; padding: 0.4rem 0.9rem; }
+  .alerts-btn[hidden] { display: none; }
+
+  .toasts {
+    position: fixed; z-index: 10;
+    right: 1rem; bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+    width: min(24rem, calc(100vw - 2rem));
+    display: flex; flex-direction: column; gap: 0.6rem;
+  }
+  .toast {
+    display: grid; grid-template-columns: 1fr auto; gap: 0.2rem 0.75rem; align-items: start;
+    padding: 0.9rem 1rem; border-radius: 12px;
+    background: var(--surface); color: var(--ink);
+    border-left: 6px solid var(--accent);
+    box-shadow: 0 10px 30px rgba(27, 42, 65, 0.25);
+    animation: toast-in .25s ease-out;
+  }
+  .toast.soon { border-left-color: var(--soon); background: var(--soon-bg); }
+  .toast.live { border-left-color: var(--live); background: var(--live-bg); }
+  .toast.ending { border-left-color: var(--end); background: var(--end-bg); }
+  .toast strong { font-size: 1rem; }
+  .toast.soon strong { color: var(--soon); }
+  .toast.live strong { color: var(--live); }
+  .toast.ending strong { color: var(--end); }
+  .toast p { grid-column: 1; margin: 0; font-size: 0.95rem; overflow-wrap: anywhere; }
+  .toast button { grid-row: 1 / span 2; grid-column: 2; font-size: 0.8rem; padding: 0.3rem 0.7rem; background: transparent; color: var(--ink); border: 1px solid currentColor; }
+  @keyframes toast-in { from { transform: translateY(12px); opacity: 0; } }
+
+  .status { margin: 1rem 0 0; font-size: 0.9rem; color: var(--muted); }
+  .status.error { color: var(--warn); }
+
+  .day { margin-top: 2rem; }
+  .day h3 {
+    font-family: "Bricolage Grotesque", "Figtree", system-ui, sans-serif;
+    font-weight: 500; font-size: 1.35rem;
+    margin: 0 0 0.6rem;
+  }
+  .day h3 span { color: var(--muted); font-size: 0.95rem; font-family: "Figtree", system-ui, sans-serif; margin-left: 0.5rem; }
+
+  ol.events { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+  .event {
+    display: grid;
+    grid-template-columns: 8.5rem 1fr auto;
+    gap: 1rem;
+    align-items: start;
+    padding: 0.85rem 1rem;
+    border-radius: 12px;
+    background: var(--surface);
+    border-left: 6px solid var(--line);
+    transition: background .4s, border-color .4s;
+  }
+  .time { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .time .end { display: block; color: var(--muted); font-weight: 400; }
+  .title { font-size: 1.1rem; font-weight: 600; margin: 0; overflow-wrap: anywhere; }
+  .state { font-size: 0.875rem; margin-top: 0.15rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .state:empty { display: none; }
+  .log { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.4rem; }
+  .chip {
+    font-size: 0.8rem; font-weight: 600; font-variant-numeric: tabular-nums;
+    padding: 0.15rem 0.55rem; border-radius: 6px;
+    background: var(--accent-soft); color: var(--ink);
+  }
+  .chip.warn { background: var(--end); color: var(--surface); }
+  /* Card or port marked "virtual" in the card/port data: flashing yellow */
+  @keyframes virtual-flash { 50% { background: transparent; color: #8A6D00; box-shadow: inset 0 0 0 2px #F5C400; } }
+  .chip.virtual {
+    background: #FFD60A; color: #1A1A1A; box-shadow: inset 0 0 0 2px #F5C400;
+    animation: virtual-flash 1s steps(1, end) infinite;
+  }
+  .chip.virtual-tag { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 800; }
+  td.virtual { background: #FFD60A; color: #1A1A1A; font-weight: 700; animation: virtual-flash 1s steps(1, end) infinite; }
+  .logpanel[hidden] { display: none; }
+  /* Let grid columns shrink so wide content (like the closures table) scrolls
+     inside its own box instead of pushing into the next column */
+  .top > section, .bottom, .event > div { min-width: 0; }
+  .closures { grid-column: 1 / -1; font-size: 0.85rem; min-width: 0; }
+  .closures summary { cursor: pointer; font-weight: 600; color: var(--accent); width: fit-content; }
+  .closures summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  .closures .wrap { max-height: 14rem; overflow: auto; max-width: 100%; margin-top: 0.35rem; border-radius: 8px; background: var(--surface); }
+  .closures table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .closures th, .closures td { text-align: left; padding: 0.25rem 0.6rem; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .closures th { position: sticky; top: 0; background: var(--surface); font-size: 0.75rem; color: var(--muted); }
+  .closures tr.during td { font-weight: 700; }
+  .closures tr.test td { color: var(--muted); }
+  .closures .tag.test { background: var(--line); color: var(--muted); }
+  .chip.eob { background: var(--live); color: var(--surface); }
+  .closures .tag { font-size: 0.7rem; font-weight: 700; padding: 0.05rem 0.4rem; border-radius: 5px; background: var(--accent-soft); }
+  .logbar { display: flex; flex-wrap: wrap; gap: 0.5rem 0.9rem; align-items: center; margin-top: 0.4rem; }
+  .logbar[hidden] { display: none; }
+  .logbar .status { margin: 0; }
+  .linkbtn { font: inherit; font-size: 0.9rem; font-weight: 600; background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; cursor: pointer; border-radius: 0; }
+  .logpanel { margin-top: 1rem; background: var(--surface); border-radius: 14px; padding: 0.75rem 1rem; }
+  .logpanel summary { cursor: pointer; font-weight: 600; }
+  .logpanel textarea {
+    width: 100%; box-sizing: border-box; min-height: 8rem; margin-top: 0.75rem;
+    font: 0.85rem/1.4 ui-monospace, "SFMono-Regular", Consolas, monospace;
+    color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 0.6rem;
+    white-space: pre; overflow-x: auto;
+  }
+  .logpanel .row { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin-top: 0.6rem; }
+  .logpanel .row button { font-size: 0.9rem; padding: 0.4rem 1rem; }
+  .logpanel .hint { font-size: 0.85rem; color: var(--muted); margin: 0.5rem 0 0; }
+  .logbanner {
+    margin-top: 1rem; padding: 1rem 1.25rem; border-radius: 14px;
+    background: var(--end-bg); border: 2px solid var(--end); color: var(--ink);
+  }
+  .logbanner[hidden] { display: none; }
+  .tbdbanner { background: var(--soon-bg); border-color: var(--soon); }
+  .logbanner.tbdbanner h2, .logbanner.tbdbanner th { color: var(--soon); }
+  .logbanner.tbdbanner button { border-color: var(--soon); }
+  .logbanner.tbdbanner button:hover { background: var(--soon); color: var(--surface); }
+  .logbanner-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.5rem 1rem; margin-bottom: 0.6rem; }
+  .logbanner h2 { margin: 0; font-size: 1.1rem; color: var(--end); }
+  .logbanner button { font-size: 0.8rem; padding: 0.25rem 0.75rem; background: var(--surface); color: var(--ink); border: 1px solid var(--end); }
+  .logbanner button:hover { background: var(--end); color: var(--surface); }
+  .linkbtn[hidden] { display: none; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .logbanner .wrap { overflow-x: auto; }
+  .logbanner table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 0.95rem; }
+  .logbanner th, .logbanner td { text-align: left; padding: 0.35rem 0.9rem 0.35rem 0; white-space: nowrap; }
+  .logbanner td.t { white-space: normal; font-weight: 600; min-width: 12rem; }
+  .logbanner th { font-size: 0.8rem; color: var(--end); font-weight: 700; }
+  .unmatched { margin-top: 3rem; }
+  .unmatched table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: 12px; overflow: hidden; font-variant-numeric: tabular-nums; }
+  .unmatched th, .unmatched td { text-align: left; padding: 0.6rem 0.9rem; border-bottom: 1px solid var(--line); }
+  .unmatched th { font-size: 0.85rem; color: var(--muted); font-weight: 600; }
+  .unmatched .wrap { overflow-x: auto; }
+
+  .event.soon   { background: var(--soon-bg); border-left-color: var(--soon); }
+  .event.soon .state { color: var(--soon); font-weight: 600; }
+  .event.live   { background: var(--live-bg); border-left-color: var(--live); }
+  .event.live .state { color: var(--live); font-weight: 700; }
+  .event.ending { background: var(--end-bg); border-left-color: var(--end); }
+  .event.ending .state { color: var(--end); font-weight: 700; }
+  .event.past   { opacity: 0.55; }
+
+  .live-dot {
+    display: inline-block; width: 0.55rem; height: 0.55rem; border-radius: 50%;
+    background: currentColor; margin-right: 0.35rem; vertical-align: 0.05rem;
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { opacity: 0.25; } }
+
+  .delete {
+    font-size: 0.85rem; font-weight: 600;
+    padding: 0.3rem 0.8rem;
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--line);
+  }
+  .delete:hover { color: var(--warn); border-color: var(--warn); }
+  .meterbtn {
+    font-size: 0.8rem; font-weight: 600; padding: 0.25rem 0.75rem;
+    background: transparent; color: var(--accent); border: 1px solid var(--accent);
+  }
+  .meterbtn.on { background: var(--accent); color: var(--surface); }
+  .meterbtn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .meterbtn[hidden] { display: none; }
+  .vus { grid-column: 1 / -1; display: grid; gap: 0.6rem; }
+  .vus:empty { display: none; }
+  .vu[hidden] { display: none; }
+  .vu-head { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.2rem; }
+  .vu-name { font-weight: 600; }
+  .vu-status.bad { color: var(--warn); font-weight: 600; }
+  .vu-ch { display: block; }
+  .vu-track {
+    position: relative; height: 10px; border-radius: 3px; overflow: hidden;
+    background: linear-gradient(90deg, #2FA35A 0%, #2FA35A 70%, #E0B000 70%, #E0B000 88%, #D93A2B 88%, #D93A2B 100%);
+  }
+  .vu-mask { position: absolute; top: 0; right: 0; bottom: 0; width: 100%; background: var(--line); }
+  .vu-peak { position: absolute; top: 0; bottom: 0; width: 2px; left: 0; background: var(--ink); opacity: 0; }
+  .vu.off .vu-track { opacity: 0.35; }
+  .vu.snap .vu-track { height: 6px; opacity: 0.85; }
+  .vu.snap .vu-mask { transition: width .6s ease; }
+  .actions { display: flex; flex-direction: column; align-items: flex-end; gap: 0.4rem; }
+  .listen {
+    display: inline-block; text-decoration: none; white-space: nowrap;
+    font-size: 0.85rem; font-weight: 700;
+    padding: 0.3rem 0.9rem; border-radius: 999px;
+    background: var(--accent); color: var(--surface); border: 1px solid var(--accent);
+  }
+  .listen:hover { filter: brightness(1.1); }
+  .listen.secondary { background: transparent; color: var(--accent); }
+  .listen.up { background: var(--live); border-color: var(--live); color: var(--surface); }
+  .listen.playing { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+  .listen.playing::before {
+    content: ""; display: inline-block; width: 0.5rem; height: 0.5rem; border-radius: 50%;
+    background: #5FD08F; margin-right: 0.4rem; vertical-align: 0.05rem; animation: pulse 1.6s ease-in-out infinite;
+  }
+  .player {
+    position: fixed; z-index: 11;
+    left: 1rem; bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+    width: min(30rem, calc(100vw - 2rem)); box-sizing: border-box;
+    display: grid; grid-template-columns: 1fr auto auto; gap: 0.75rem; align-items: center;
+    padding: 0.8rem 1rem; border-radius: 14px;
+    background: var(--ink); color: var(--bg);
+    box-shadow: 0 10px 30px rgba(27, 42, 65, 0.3);
+  }
+  .player[hidden] { display: none; }
+  .player-info { display: flex; flex-direction: column; min-width: 0; }
+  .player-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.8; }
+  .player-label.bad { color: #FF8A7A; opacity: 1; }
+  .player-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .player-title { font-size: 0.85rem; opacity: 0.8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .player-vol input { width: 6.5rem; accent-color: #5CC1D1; }
+  .player button { font-size: 0.9rem; padding: 0.45rem 1rem; background: var(--bg); color: var(--ink); border-color: var(--bg); }
+  @media (max-width: 34rem) { .player { grid-template-columns: 1fr auto; } .player-vol { display: none; } }
+  .listen.failed { background: var(--end); border-color: var(--end); color: var(--surface); }
+  .listen.inactive { opacity: 0.55; cursor: not-allowed; }
+  .listen.down { background: var(--end); border-color: var(--end); color: var(--surface); }
+  .listen.checking { opacity: 0.7; }
+  .listen:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  .top {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+    gap: 2.5rem 2rem; align-items: start; margin-top: 1.75rem;
+  }
+  .top .event { grid-template-columns: 5.5rem 1fr auto; gap: 0.75rem; }
+  .top .day:first-of-type { margin-top: 1rem; }
+  .bottom { margin-top: 4rem; padding-top: 1.5rem; border-top: 3px solid var(--ink); }
+  .section-title {
+    font-family: "Bricolage Grotesque", "Figtree", system-ui, sans-serif;
+    font-weight: 700; font-size: clamp(1.6rem, 4.5vw, 2.25rem);
+    letter-spacing: -0.015em; line-height: 1.1; margin: 0;
+  }
+  .empty { margin-top: 2rem; color: var(--muted); }
+  .ended { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
+  .ended summary { cursor: pointer; display: flex; align-items: baseline; gap: 0.6rem; list-style: none; }
+  .ended summary .section-title { font-size: clamp(1.4rem, 3.5vw, 1.8rem); }
+  .ended-count { font-weight: 700; color: var(--muted); }
+  .ended summary::-webkit-details-marker { display: none; }
+  .ended summary::before {
+    content: ""; align-self: center; width: 0; height: 0;
+    border-style: solid; border-width: 0.4rem 0 0.4rem 0.6rem; border-color: transparent transparent transparent var(--ink);
+    transition: transform .15s;
+  }
+  .ended[open] summary::before { transform: rotate(90deg); }
+  .ended summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+  .ended .event.past { opacity: 0.75; }
+
+  @media (max-width: 34rem) {
+    .event, .top .event { grid-template-columns: 1fr auto; }
+    .event .time { grid-column: 1 / -1; }
+    .time .end { display: inline; }
+    .time .end::before { content: " – "; }
+  }
+  .watermark {
+    margin-top: 3rem; text-align: center; font-size: 0.75rem; letter-spacing: 0.04em;
+    color: var(--muted); opacity: 0.55; user-select: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .toast { animation: none; }
+    * { transition: none !important; }
+    .live-dot { animation: none; }
+  }
+</style>
+</head>
+<body>
+<main id="app">
+  <h1>Event watcher</h1>
+  <p class="intro">Import a CSV and keep this page open. Events light up as they approach, go live, and near their end. Streams for events starting soon or live show audio levels.</p>
+
+  <details class="imports" id="imports">
+    <summary>
+      <span class="imports-title">Import &amp; data</span>
+      <span class="imports-sum" id="importSummary">Loading today's feed…</span>
+    </summary>
+  <div class="drop" id="drop">
+    <p>Drop a CSV, saved feed (.xml), card/port file or closures log (.txt) here, or on the bar above.</p>
+    <button class="btn-primary" id="feedBtn" type="button">Load today's feed</button>
+    <label class="btn btn-ghost" for="file" tabindex="0" id="fileLabel">Choose file</label>
+    <input type="file" id="file" accept=".csv,.xml,text/csv,text/xml,application/xml,application/rss+xml">
+    <label class="btn btn-ghost" for="logFile" tabindex="0" id="logFileLabel">Import card/port (.txt)</label>
+    <input type="file" id="logFile" accept=".txt,.tsv,.tab,text/plain,text/tab-separated-values">
+    <label class="btn btn-ghost" for="closureFile" tabindex="0" id="closureFileLabel">Import closures (.txt)</label>
+    <input type="file" id="closureFile" accept=".txt,.log,text/plain">
+  </div>
+
+  <p class="status" id="feedStatus" role="status"></p>
+  <div class="logbar" id="closureBar" hidden>
+    <p class="status" id="closureStatus" role="status"></p>
+    <button class="linkbtn" id="closureClear" type="button">Clear closures</button>
+  </div>
+  <div class="logbar" id="logBar" hidden>
+    <p class="status" id="logStatus" role="status"></p>
+    <button class="linkbtn" id="logClear2" type="button">Clear card and port data</button>
+    <button class="linkbtn" id="logRestore" type="button" hidden>Restore deleted warnings</button>
+  </div>
+  </details>
+  <div class="logbar" id="tbdBar" hidden>
+    <button class="linkbtn" id="tbdRestore" type="button">Restore deleted no-time events</button>
+  </div>
+  <section class="logbanner tbdbanner" id="tbdBanner" role="alert" hidden></section>
+  <section class="logbanner" id="logBanner" role="alert" hidden></section>
+
+  <details class="logpanel" id="logPanel" hidden>
+    <summary>Card and port data</summary>
+    <textarea id="logText" spellcheck="false" placeholder="Paste tab-delimited rows here (title, …, card, port, start time, duration)"></textarea>
+    <div class="row">
+      <button class="btn-primary" id="logApply" type="button">Apply</button>
+      <label class="btn btn-ghost" for="logFile" tabindex="0" style="font-size:0.9rem;padding:0.4rem 1rem">Choose .txt file</label>
+      <button class="btn-ghost" id="logClear" type="button">Clear</button>
+    </div>
+    <p class="hint">Uses column 1 (title), 3–5 (date range and weekday), 8 (card), 9 (port), 10 (start time) and 11 (duration). Only rows for today are used. You can also drop a .txt file on the box above.</p>
+  </details>
+
+  <section class="countdown" id="countdown" aria-live="polite">
+    <div class="clock" id="clock">--:--</div>
+    <div class="next">
+      <p class="next-label" id="nextLabel">Next event</p>
+      <ul class="next-title" id="nextTitle"></ul>
+    </div>
+  </section>
+
+  <div class="legend" role="group" aria-label="Color key">
+    <ul>
+      <li><span class="swatch" style="background:var(--soon-bg);border-color:var(--soon)"></span>Starts within 15 min</li>
+      <li><span class="swatch" style="background:var(--live-bg);border-color:var(--live)"></span>Live</li>
+      <li><span class="swatch" style="background:var(--end-bg);border-color:var(--end)"></span>Live, under 1 hour left</li>
+    </ul>
+    <ul>
+      <li><span class="swatch" style="background:var(--live);border-color:var(--live)"></span>Green Listen button: stream available</li>
+      <li><span class="swatch" style="background:var(--end);border-color:var(--end)"></span>Red Listen button: stream not responding</li>
+    </ul>
+  </div>
+
+  <div class="settings">
+    <input type="search" id="search" placeholder="Find an event" aria-label="Find an event">
+    <button class="btn-ghost restore" id="restore" type="button" hidden>Restore deleted</button>
+    <label class="awake"><input type="checkbox" id="awake" checked> Keep this PC awake <span class="awake-note" id="awakeNote"></span></label>
+    <label class="awake" title="Real-time meters when 4 or fewer streams are live; rotating level checks when more"><input type="checkbox" id="snapToggle" checked> Level meters on live streams <span class="awake-note" id="meterMode"></span></label>
+    <label class="awake">Meters from
+      <select id="meterSource">
+        <option value="browser">Browser</option>
+        <option value="ffmpeg">FFmpeg (all live)</option>
+      </select>
+    </label>
+    <button class="btn-ghost alerts-btn" id="alertsBtn" type="button" hidden>Turn on desktop alerts</button>
+    <button class="btn-primary export" id="export" type="button">Export list</button>
+  </div>
+
+  <p class="status" id="status" role="status"></p>
+  <p class="status error" id="streamsDown" hidden></p>
+  <div id="schedule"></div>
+  <div class="toasts" id="toasts" aria-live="assertive"></div>
+
+  <footer class="watermark">© 2026 Cartmill Technologies LLC</footer>
+</main>
+
+<script>
+/* Copyright (c) 2026 Cartmill Technologies LLC. All rights reserved. */
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const SOON_MS = 15 * 60 * 1000;   // "approaching" window before start
+  const ENDING_MS = 60 * 60 * 1000; // red when this close to the end
+  const STORE = "event-watcher-v1";
+
+  let rows = [];
+  let fileName = "";
+  let deleted = new Set();
+  let events = [];
+  let source = "";   // "feed" or "csv"
+  let feedDay = "";  // the day the feed rows were filtered for
+
+  // ---------- storage (so the watcher survives a refresh) ----------
+  function save() {
+    try { localStorage.setItem(STORE, JSON.stringify({ rows, fileName, deleted: [...deleted], source, feedDay })); } catch (e) {}
+  }
+  function restoreSaved() {
+    try {
+      const s = JSON.parse(localStorage.getItem(STORE) || "null");
+      if (s && Array.isArray(s.rows) && s.rows.length) {
+        rows = s.rows; fileName = s.fileName || "your CSV"; deleted = new Set(s.deleted || []);
+        source = s.source || "csv"; feedDay = s.feedDay || "";
+        build(); return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  // ---------- file input ----------
+  $("file").addEventListener("change", (e) => {
+    const f = e.target.files[0];
+    if (f) readFile(f);
+    e.target.value = "";
+  });
+  $("fileLabel").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("file").click(); }
+  });
+
+  const drop = $("imports");
+  ["dragenter", "dragover"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave", "drop"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop", (e) => { const f = e.dataTransfer.files[0]; if (f) readFile(f); });
+
+  // One-line summary of the import area, kept current from its status lines
+  function updateImportSummary() {
+    const first = (el) => {
+      if (!el || el.closest("[hidden]")) return "";
+      const t = el.textContent.trim();
+      return t ? t.split(/(?<=\.)\s/)[0].replace(/\.$/, "") : "";
+    };
+    const parts = [first($("feedStatus"))];
+    const lm = $("logStatus").textContent.match(/(\d+) matched to events/);
+    if (lm && !$("logBar").hidden) parts.push("Card/port: " + lm[1] + " matched");
+    const cm = $("closureStatus").textContent.match(/(\d+) matched to schools/);
+    if (!$("closureBar").hidden) parts.push(cm ? "Closures: " + cm[1] : first($("closureStatus")));
+    const sum = $("importSummary");
+    const text = parts.filter(Boolean).join(" · ");
+    if (sum.textContent !== text) sum.textContent = text;
+    const bad = ["feedStatus", "closureStatus", "logStatus"].some((id) => $(id).classList.contains("error")) ||
+      /couldn't|not found|isn't there/i.test($("closureStatus").textContent);
+    sum.classList.toggle("error", bad);
+  }
+  {
+    const mo = new MutationObserver(updateImportSummary);
+    ["feedStatus", "closureBar", "logBar"].forEach((id) =>
+      mo.observe($(id), { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["hidden", "class"] }));
+  }
+
+  // Remember whether the import area is open
+  const IMPORTS_KEY = "event-watcher-imports-open";
+  try { $("imports").open = localStorage.getItem(IMPORTS_KEY) === "1"; } catch (e) {}
+  $("imports").addEventListener("toggle", () => { try { localStorage.setItem(IMPORTS_KEY, $("imports").open ? "1" : "0"); } catch (e) {} });
+
+  function readFile(file) {
+    if (/\.(txt|tsv|tab|log)$/i.test(file.name)) {
+      file.text().then((t) => {
+        if (looksLikeClosures(t)) applyClosures(t, file.name);
+        else { $("logText").value = t; applyLog(t); }
+      });
+      return;
+    }
+    if (/\.xml$/i.test(file.name) || /xml/i.test(file.type)) {
+      file.text().then((xml) => {
+        try { applyFeed(xml, file.name); } catch (err) { setFeedStatus("Couldn't read that feed file: " + err.message, true); }
+      });
+      return;
+    }
+    Papa.parse(file, {
+      skipEmptyLines: "greedy",
+      complete: (res) => {
+        if (!res.data.length) return setStatus("That file has no rows. Check that it's a CSV with data in it.", true);
+        load(res.data, file.name);
+      },
+      error: (err) => setStatus("Couldn't read that file: " + err.message, true)
+    });
+  }
+
+  function load(data, name) {
+    rows = data; fileName = name; deleted = new Set(); source = "csv"; feedDay = "";
+    setFeedStatus("Showing " + name + ". Click Load today's feed to switch back to the live feed.");
+    save(); build();
+  }
+
+  // ---------- broadcast calendar feed ----------
+  const FEED_URL = "https://broadcastcalendarapi.learfield.net/api/Link/GetData?hash=6F628624BB4F4C5D88DCDAB31288FD0A";
+  const FEED_REFRESH_MS = 5 * 60 * 1000;
+  let feedBusy = false;
+  let feedUnreadable = 0;
+
+  // Feed times look like "10/17/2026 8:45:00 PM" and are in UTC
+  function parseFeedDate(v) {
+    const str = String(v || "").trim();
+    // ISO style: 2026-10-24T19:00:00(.000)(Z)
+    const iso = str.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?\s*Z?$/i);
+    if (iso) return new Date(Date.UTC(+iso[1], +iso[2] - 1, +iso[3], +iso[4], +iso[5], +(iso[6] || 0)));
+    const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?\s*([AP]\.?M\.?)?$/i);
+    if (!m) return null;
+    let h = +m[4];
+    if (m[7]) { h %= 12; if (/p/i.test(m[7])) h += 12; }
+    return new Date(Date.UTC(+m[3], +m[1] - 1, +m[2], h, +m[5], +(m[6] || 0)));
+  }
+  const child = (el, name) => { for (const c of el.children) if (c.localName === name) return c; return null; };
+  const field = (el, name) => { const c = child(el, name); return c ? c.textContent.trim() : ""; };
+
+  // Turn the feed into rows (same layout as a CSV: start in column 4, end in column 6),
+  // keeping only events that fall on the given local day.
+  function feedToRows(xml, day) {
+    // The feed isn't strictly valid XML (it has bare "&", as in "US & Canada"),
+    // so tidy it before parsing.
+    xml = String(xml)
+      .replace(/^\uFEFF/, "")
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
+      .replace(/&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, "&amp;");
+    const doc = new DOMParser().parseFromString(xml, "application/xml");
+    if (doc.getElementsByTagName("parsererror").length) throw new Error("it isn't a valid feed");
+    const d0 = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+    const d1 = new Date(d0); d1.setDate(d1.getDate() + 1);
+    const out = [["ID", "Title", "calendarName", "Start", "Location", "End", "Resources", "eventType", "Date", "Last date"]];
+    let unreadable = 0;
+    [...doc.getElementsByTagName("item")].forEach((it) => {
+      const s = parseFeedDate(field(it, "eventStartDate"));
+      if (!s) { unreadable++; return; }
+      let e = parseFeedDate(field(it, "eventEndDate")) || s;
+      const res = child(it, "resources");
+      const resources = res ? [...res.children].map((r) => r.textContent.trim()).filter(Boolean).join(", ") : "";
+      const row = [field(it, "guid"), field(it, "title"), field(it, "calendar"), "", field(it, "location"), "", resources,
+        field(it, "eventType") || field(it, "category")];
+      // Date-only entries (no time scheduled): start at 12:00:00 AM and end at
+      // 11:59 PM, or at 12:00 AM, or not after the start
+      const atMidnight = (d) => d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0;
+      // Entries that start and end at the same moment are also date-only
+      // (the feed lists them at 11:00 PM the evening before, e.g. "Created by Integration")
+      // Same-day 12:00 AM to 11:59 PM, or 12:00 AM to 12:00 AM whole days
+      const allDay = atMidnight(s) && (
+        (e.getUTCHours() === 23 && e.getUTCMinutes() === 59 && e - s < 86400000) ||
+        (atMidnight(e) && e > s && (e - s) % 86400000 === 0));
+      // Start = end is a placeholder only at 12:00 AM or 11:00 PM local (the
+      // "Created by Integration" entries). Any other start = end (or a missing
+      // end) is a real start time with no end in the feed: give it 3 hours.
+      let noEnd = false;
+      if (!allDay && e <= s) {
+        const lh = s.getHours(), lm = s.getMinutes();
+        const placeholder = atMidnight(s) || (lm === 0 && (lh === 23 || lh === 0));
+        if (!placeholder) { e = new Date(s.getTime() + 3 * 3600000); noEnd = true; }
+      }
+      const tbd = allDay || e <= s;
+      if (tbd) {
+        // The intended calendar date is the UTC date of the entry
+        const ymdStr = (d) => (d.getUTCMonth() + 1) + "/" + d.getUTCDate() + "/" + d.getUTCFullYear();
+        const first = new Date(s.getUTCFullYear(), s.getUTCMonth(), s.getUTCDate());
+        const last = e > s ? new Date(e.getUTCFullYear(), e.getUTCMonth(), e.getUTCDate()) : first;
+        // Keep today's and tomorrow's; the page shows them only once your local
+        // date reaches them (the feed drops tomorrow's before midnight)
+        if (first < d1.getTime() + 86400000 && last >= d0) {
+          row[3] = "Time TBD";
+          row[8] = ymdStr(s);
+          row[9] = (last.getMonth() + 1) + "/" + last.getDate() + "/" + last.getFullYear();
+          out.push(row);
+        }
+        return;
+      }
+      if (s < d1 && e > d0) { row[3] = s.toISOString(); row[5] = e.toISOString(); out.push(row); }
+    });
+    out.unreadable = unreadable;
+    return out;
+  }
+
+  function applyFeed(xml, name) {
+    const now = new Date();
+    const newRows = feedToRows(xml, now);
+    feedUnreadable = newRows.unreadable || 0;
+    const switching = source !== "feed";
+    // The feed drops events once they're over. Keep today's events we've
+    // already seen that have ended, so they stay in the Ended events list.
+    let kept = 0;
+    const sameDay = feedDay === dayKey(now);
+    if (!switching && rows.length > 1) {
+      const rowKey = (r) => r[0] || [r[1], r[3], r[5]].join("|");
+      const present = new Set(newRows.slice(1).map(rowKey));
+      rows.slice(1).forEach((r) => {
+        if (present.has(rowKey(r))) return;
+        if (r[3] === "Time TBD") {
+          const last = parseDateOnly(r[9] || r[8]);
+          const today = new Date(now); today.setHours(0, 0, 0, 0);
+          if (last && last >= today) { newRows.push(r); kept++; }
+          return;
+        }
+        if (!sameDay) return; // ended events don't carry over to a new day
+        const end = Date.parse(r[5]);
+        if (end && end <= now.getTime()) { newRows.push(r); kept++; }
+      });
+    }
+    rows = newRows; fileName = name; source = "feed"; feedDay = dayKey(now);
+    if (switching) deleted = new Set();
+    save();
+    build(switching); // keep alert history across routine refreshes
+    setFeedStatus("Feed updated " + fmtTime(now) + ". Refreshes every 5 minutes.");
+  }
+
+  // Opened through the Start Event Watcher helper (http://localhost), the helper
+  // fetches the feed for the page at /feed, which avoids the browser's
+  // cross-site block. Opened straight from disk, the page asks the feed directly.
+  const VIA_HELPER = /^https?:$/.test(location.protocol);
+
+  async function getFeedText() {
+    if (VIA_HELPER) {
+      try {
+        const r = await fetch("feed", { cache: "no-store" });
+        if (r.ok) return await r.text();
+      } catch (e) {}
+    }
+    const res = await fetch(FEED_URL, { cache: "no-store" });
+    if (!res.ok) throw new Error("the server answered " + res.status);
+    return await res.text();
+  }
+
+  async function fetchFeed() {
+    if (feedBusy) return;
+    feedBusy = true;
+    if (!events.length) setFeedStatus("Loading today's feed…");
+    try {
+      applyFeed(await getFeedText(), "today's feed");
+    } catch (err) {
+      const kept = source === "feed" && events.length ? " Still showing the last update." : "";
+      const tip = VIA_HELPER
+        ? " Check that the Start Event Watcher window is still open and this computer can reach the feed."
+        : " The feed server blocks pages opened straight from a file. Open the watcher with \"Start Event Watcher.bat\" instead, or save the feed as an .xml file and drop it here.";
+      setFeedStatus("Couldn't load the feed (" + (err && err.message || "network error") + ")." + kept + tip, true, !VIA_HELPER);
+    } finally {
+      feedBusy = false;
+    }
+  }
+
+  function setFeedStatus(text, isError, withLink) {
+    const el = $("feedStatus");
+    el.textContent = text + (withLink ? " " : "");
+    if (withLink) {
+      const a = document.createElement("a");
+      a.href = FEED_URL; a.target = "_blank"; a.rel = "noopener noreferrer"; a.textContent = "Open the feed";
+      el.appendChild(a);
+    }
+    el.classList.toggle("error", !!isError);
+  }
+
+  $("feedBtn").addEventListener("click", fetchFeed);
+  setInterval(() => { if (source === "feed") fetchFeed(); }, FEED_REFRESH_MS);
+
+  // ---------- stream lookup (from learfield_stream_links.csv) ----------
+  // School name -> { LS number -> stream id }.
+  // Primary (Entry 1) URL is STREAM_BASE + id; secondary (Entry 2) is STREAM_BASE_2 + id.
+  const STREAM_BASE = "https://chi-master1-entry-img1.leanstream-hd.com:2113/";
+  const STREAM_BASE_2 = "https://hil-master1-entry-img2.leanstream-hd.com:2113/";
+  const STREAMS = {"Kansas":{"1":"IM0101-MP3","2":"IM0102-MP3","3":"IM0103-MP3","4":"IM0104-MP3","5":"IM0105-MP3","6":"IM0106-MP3"},"Texas":{"1":"IM0201-MP3","2":"IM0202-MP3","3":"IM0203-MP3","4":"IM0204-MP3","5":"IM0205-MP3","6":"IM0206-MP3","7":"IM0207-MP3"},"West Virginia":{"1":"IM0301-MP3","2":"IM0302-MP3","3":"IM0303-MP3"},"Oregon":{"1":"IM0801-MP3","2":"IM0802-MP3","3":"IM0803-MP3","4":"IM0804-MP3"},"Washington":{"1":"IM1001-MP3","2":"IM1002-MP3","3":"IM1003-MP3","4":"IM1004-MP3","5":"IM1005-MP3"},"Arkansas":{"1":"IM1201-MP3","2":"IM1202-MP3","3":"IM1203-MP3","4":"IM1204-MP3"},"Houston":{"1":"IM1501-MP3","2":"IM1502-MP3"},"Marshall":{"1":"IM1601-MP3","2":"IM1602-MP3","3":"IM1603-MP3","4":"IM1604-MP3"},"South Carolina":{"1":"IM1701-MP3","2":"IM1702-MP3","3":"IM1703-MP3"},"Southern Miss":{"1":"IM1801-MP3","2":"IM1802-MP3","3":"IM1803-MP3"},"Tennessee":{"1":"IM1901-MP3","2":"IM1902-MP3","3":"IM1903-MP3","4":"IM1904-MP3","5":"IM1905-MP3","6":"IM1906-MP3"},"UAB":{"1":"IM2001-MP3","2":"IM2002-MP3"},"UNLV":{"1":"IM2101-MP3"},"Vanderbilt":{"1":"IM2301-MP3","2":"IM2302-MP3","3":"IM2303-MP3","4":"IM2304-MP3"},"Wake Forest":{"1":"IM2401-MP3","2":"IM2402-MP3","3":"IM2403-MP3"},"Western Kentucky":{"1":"IM2501-MP3","2":"IM2502-MP3","3":"IM2503-MP3","4":"IM2504-MP3","5":"IM2505-MP3"},"Air Force":{"1":"IM2601-MP3","2":"IM2602-MP3","3":"IM2603-MP3"},"UConn":{"1":"IM3401-MP3","2":"IM3402-MP3","3":"IM3403-MP3"},"Duke":{"1":"IM3501-MP3","2":"IM3502-MP3","3":"IM3503-MP3","4":"IM3504-MP3"},"Florida":{"1":"IM3601-MP3","2":"IM3602-MP3","3":"IM3603-MP3","4":"IM3604-MP3"},"Gonzaga":{"1":"IM3701-MP3","2":"IM3702-MP3"},"Michigan":{"1":"IM4001-MP3","2":"IM4002-MP3","3":"IM4003-MP3","4":"IM4004-MP3"},"Ole Miss":{"1":"IM4101-MP3","2":"IM4102-MP3","3":"IM4103-MP3"},"Ohio":{"1":"IM4301-MP3","2":"IM4302-MP3"},"Rice":{"1":"IM4501-MP3","2":"IM4502-MP3","3":"IM4503-MP3"},"Rutgers":{"1":"IM4601-MP3","2":"IM4602-MP3","3":"IM4603-MP3"},"St. John’s":{"1":"IM4701-MP3"},"Syracuse":{"1":"IM4801-MP3","2":"IM4802-MP3","3":"IM4803-MP3"},"TCU":{"1":"IM4901-MP3","2":"IM4902-MP3","3":"IM4903-MP3"},"Georgia":{"1":"IM5001-MP3","2":"IM5002-MP3","3":"IM5003-MP3"},"Saint Mary’s":{"1":"IM5301-MP3"},"Tulane":{"1":"IM5701-MP3","2":"IM5702-MP3","3":"IM5703-MP3"},"Ohio State":{"1":"IM5801-MP3","2":"IM5802-MP3","3":"IM5803-MP3"},"Drake":{"1":"IM5901-MP3","2":"IM5902-MP3"},"Eastern Michigan":{"1":"IM6001-MP3"},"Princeton":{"1":"IM6301-MP3"},"SEC":{"1":"IM6701-MP3","2":"IM6702-MP3"},"College Sports Now":{"1":"IM6801-MP3"},"Alabama":{"1":"IM7001-MP3","2":"IM7002-MP3"},"Colorado":{"1":"IM7101-MP3","2":"IM7102-MP3","3":"IM7103-MP3"},"Oregon State":{"1":"IM7201-MP3","2":"IM7202-MP3","3":"IM7203-MP3"},"Indiana":{"1":"IM7301-MP3","2":"IM7302-MP3"},"Illinois":{"1":"IM7401-MP3","2":"IM7402-MP3"},"Louisville":{"1":"IM7501-MP3","2":"IM7502-MP3","3":"IM7503-MP3"},"Iowa":{"1":"IM7601-MP3","2":"IM7602-MP3"},"Montana":{"1":"IM7701-MP3","2":"IM7702-MP3"},"Iowa State":{"1":"IM7901-MP3","2":"IM7902-MP3","3":"IM7903-MP3"},"Kansas State":{"1":"IM8001-MP3","2":"IM8002-MP3"},"Texas Tech":{"1":"IM8101-MP3","2":"IM8102-MP3","3":"IM8103-MP3"},"Wyoming":{"1":"IM8201-MP3","2":"IM8202-MP3"},"Mississippi State":{"1":"IM8301-MP3","2":"IM8302-MP3","3":"IM8303-MP3"},"Minnesota":{"1":"IM8401-MP3","2":"IM8402-MP3","3":"IM8403-MP3","4":"IM8404-MP3"},"Wisconsin":{"1":"IM8501-MP3","2":"IM8502-MP3"},"Army":{"1":"IM8601-MP3","2":"IM8602-MP3","3":"IM8603-MP3","4":"IM8604-MP3"},"Missouri":{"1":"IM8801-MP3","2":"IM8802-MP3","3":"IM8803-MP3"},"Purdue":{"1":"IM8901-MP3","2":"IM8902-MP3","3":"IM8903-MP3","4":"IM8904-MP3"},"Oklahoma":{"1":"IM9001-MP3","2":"IM9002-MP3","3":"IM9003-MP3","4":"IM9004-MP3"},"Oklahoma State":{"1":"IM9101-MP3","2":"IM9102-MP3","3":"IM9103-MP3"},"North Carolina":{"1":"IM9201-MP3","2":"IM9202-MP3","3":"IM9203-MP3"},"NC State":{"1":"IM9301-MP3","2":"IM9302-MP3","3":"IM9303-MP3"},"Westwood One":{"1":"IM9401-MP3","2":"IM9402-MP3","3":"IM9403-MP3","4":"IM9404-MP3","5":"IM9405-MP3","6":"IM9406-MP3"},"Learfield Backup":{"1":"LF0001-MP3","2":"LF0002-MP3","3":"LF0003-MP3","4":"LF0004-MP3","5":"LF0005-MP3"},"ACC":{"1":"LF0101-MP3"},"Boise State":{"1":"LF0401-MP3","2":"LF0402-MP3","3":"LF0403-MP3"},"Bowl Season":{"1":"LF0501-MP3","2":"LF0502-MP3"},"Bowling Green":{"1":"LF0601-MP3","2":"LF0602-MP3"},"Brown":{"1":"LF0701-MP3","2":"LF0702-MP3","3":"LF0703-MP3"},"Buffalo":{"1":"LF0801-MP3","2":"LF0802-MP3"},"Cal":{"1":"LF1001-MP3"},"Chattanooga":{"1":"LF1301-MP3","2":"LF1302-MP3"},"Colorado State":{"1":"LF1701-MP3"},"Davidson":{"1":"LF1801-MP3"},"Eastern Washington":{"1":"LF1901-MP3"},"Elon":{"1":"LF2001-MP3"},"Evansville":{"1":"LF2101-MP3"},"Georgia Southern":{"1":"LF2401-MP3","2":"LF2402-MP3"},"Idaho":{"1":"LF2501-MP3","2":"LF2502-MP3"},"Illinois State":{"1":"LF2601-MP3","2":"LF2602-MP3"},"LA Tech":{"1":"LF2701-MP3","2":"LF2702-MP3"},"Louisiana":{"1":"LF2801-MP3","2":"LF2802-MP3","3":"LF2803-MP3"},"Marquette":{"1":"LF3001-MP3"},"Memphis":{"1":"LF3101-MP3","2":"LF3102-MP3","3":"LF3103-MP3"},"Minnesota Lynx":{"1":"LF3201-MP3"},"Minnesota Timberwolves":{"1":"LF3301-MP3"},"Minnesota Twins":{"1":"LF3401-MP3"},"Minnesota Vikings":{"1":"LF3501-MP3"},"Missouri State":{"1":"LF3601-MP3","2":"LF3602-MP3","3":"LF3603-MP3"},"Montana State":{"1":"LF3701-MP3","2":"LF3702-MP3"},"MVC":{"1":"LF3801-MP3"},"Nebraska-Omaha":{"1":"LF3901-MP3","2":"LF3902-MP3","3":"LF3903-MP3"},"Nevada":{"1":"LF4001-MP3","2":"LF4002-MP3","3":"LF4003-MP3","4":"LF4004-MP3"},"New Hampshire":{"1":"LF4101-MP3"},"North Texas":{"1":"LF4301-MP3","2":"LF4302-MP3","3":"LF4303-MP3"},"Northern Arizona":{"1":"LF4401-MP3"},"Northern Iowa":{"1":"LF4601-MP3","2":"LF4602-MP3","3":"LF4603-MP3"},"Providence":{"1":"LF4801-MP3","2":"LF4802-MP3"},"Rhode Island":{"1":"LF4901-MP3","2":"LF4902-MP3","3":"LF4903-MP3"},"Saint Louis":{"1":"LF5001-MP3"},"Seton Hall":{"1":"LF5101-MP3"},"South Dakota":{"1":"LF5201-MP3","2":"LF5202-MP3"},"Southern Illinois":{"1":"LF5301-MP3","2":"LF5302-MP3","3":"LF5303-MP3","4":"LF5304-MP3"},"Southern Methodist":{"1":"LF5401-MP3","2":"LF5402-MP3","3":"LF5403-MP3"},"St. Cloud State":{"1":"LF5501-MP3","2":"LF5502-MP3","3":"LF5503-MP3"},"Stanford":{"1":"LF5601-MP3","2":"LF5602-MP3","3":"LF5603-MP3","4":"LF5604-MP3"},"Texas State":{"1":"LF5801-MP3","2":"LF5802-MP3"},"Toledo":{"1":"LF5901-MP3","2":"LF5902-MP3","3":"LF5903-MP3"},"Tulsa":{"1":"LF6001-MP3"},"UMass":{"1":"LF6101-MP3","2":"LF6102-MP3","3":"LF6103-MP3"},"Utah State":{"1":"LF6301-MP3","2":"LF6302-MP3"},"VCU":{"1":"LF6501-MP3","2":"LF6502-MP3"},"Vermont":{"1":"LF6601-MP3","2":"LF6602-MP3"},"Xavier":{"1":"LF6701-MP3"},"South Dakota State":{"1":"LF6801-MP3","2":"LF6802-MP3"},"CSC Talk Radio":{"1":"LF6901-MP3"},"James Madison":{"1":"LF7101-MP3","2":"LF7102-MP3"},"UC Davis":{"1":"LF7201-MP3","2":"LF7202-MP3"},"Loyola":{"1":"LF7301-MP3"},"Learfield Winston-Salem":{"1":"LF7421-MP3","2":"LF7422-MP3","3":"LF7423-MP3","4":"LF7424-MP3","5":"LF7415-MP3","6":"LF7416-MP3","7":"LF7417-MP3","8":"LF7418-MP3","9":"LF7419-MP3","0":"LF7420-MP3"},"North Dakota State":{"1":"LF7501-MP3","2":"LF7502-MP3"},"Compass Media Networks":{"1":"LF7601-MP3","2":"LF7602-MP3"},"UW Milwaukee":{"1":"LF7701-MP3","2":"LF7702-MP3"},"St Thomas":{"1":"LF7801-MP3","2":"LF7802-MP3","3":"LF7803-MP3"},"Kansas City Royals":{"1":"LF7901-MP3"},"UT Arlington":{"1":"LF8001-MP3"},"SF Austin":{"1":"LF8101-MP3","2":"LF8102-MP3","3":"LF8103-MP3"},"USC":{"1":"LF8201-MP3","2":"LF8202-MP3","3":"LF8203-MP3","4":"LF8204-MP3"},"Murray State":{"1":"LF8301-MP3","2":"LF8302-MP3","3":"LF8303-MP3","4":"LF8304-MP3"},"Testing":{"1":"LF9901-MP3","2":"LF9902-MP3"}};
+  const norm = (t) => String(t ?? "").replace(/[\u2018\u2019`]/g, "'").toLowerCase();
+  const escRe = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // Short names that also point to a stream (e.g. "Twins" for Minnesota Twins)
+  const ALIASES = {
+    "Twins": "Minnesota Twins", "Vikings": "Minnesota Vikings",
+    "Lynx": "Minnesota Lynx", "Timberwolves": "Minnesota Timberwolves",
+    "Royals": "Kansas City Royals",
+    "CSC-Talk Radio": "CSC Talk Radio", "CSC - Talk Radio": "CSC Talk Radio",
+    "KU": "Kansas",
+    "Southern Cal": "USC", "Trojans": "USC",
+    "K State": "Kansas State", "K-State": "Kansas State",
+    "MN-Vikings": "Minnesota Vikings", "MN Vikings": "Minnesota Vikings",
+    "Hou": "Houston",
+    "Louisiana Tech": "LA Tech", "La. Tech": "LA Tech",
+    "Mizzou": "Missouri",
+    "T'Wolves": "Minnesota Timberwolves", "TWolves": "Minnesota Timberwolves",
+    "Crimson and Blue": "Kansas", "Crimson & Blue": "Kansas", "Crimson/Blue": "Kansas",
+    "Nebraska Omaha": "Nebraska-Omaha", "Neb-Omaha": "Nebraska-Omaha", "Neb. Omaha": "Nebraska-Omaha", "Omaha": "Nebraska-Omaha"
+  };
+  const SCHOOLS = Object.keys(STREAMS).map((name) => ({ name, match: name }))
+    .concat(Object.entries(ALIASES).map(([alias, name]) => ({ name, match: alias })))
+    .map((sc) => ({ name: sc.name, re: new RegExp("(^|[^a-z0-9])(" + escRe(norm(sc.match)) + ")(?![a-z0-9])", "g") }));
+
+  // Schools named in a title. When one name sits inside a longer one
+  // ("Iowa" in "Iowa State"), only the longer one counts.
+  function schoolsIn(title) {
+    const t = norm(title);
+    const hits = [];
+    SCHOOLS.forEach((sc) => {
+      sc.re.lastIndex = 0;
+      let m;
+      while ((m = sc.re.exec(t))) {
+        const start = m.index + m[1].length;
+        hits.push({ name: sc.name, start, end: start + m[2].length });
+      }
+    });
+    const kept = hits.filter((h) => !hits.some((o) => o !== h && o.start <= h.start && o.end >= h.end && (o.end - o.start) > (h.end - h.start)));
+    kept.sort((a, b) => a.start - b.start);
+    return [...new Set(kept.map((h) => h.name))];
+  }
+
+  // LS numbers in the resources, e.g. "LS 1", "LS2", "LS-3"
+  function lsNumbers(resources) {
+    const nums = [];
+    const re = /\bLS\s*-?\s*(\d+)\b/gi;
+    let m;
+    while ((m = re.exec(String(resources ?? "")))) if (!nums.includes(String(+m[1]))) nums.push(String(+m[1]));
+    return nums;
+  }
+
+  // "LS" on its own, with no number after it
+  const plainLS = (resources) => /\bLS\b(?!\s*-?\s*\d)/i.test(String(resources ?? ""));
+
+  // In a matchup ("Mizzou vs. Florida"), the stream is the first team's
+  function leadSchools(title) {
+    const m = String(title || "").match(/^(.*?)\s+(?:vs\.?|v\.?|@|at)\s+\S/i);
+    return m ? { matchup: true, schools: schoolsIn(m[1]) } : { matchup: false, schools: schoolsIn(title) };
+  }
+
+  function listenLinks(title, resources, eventType) {
+    const nums = lsNumbers(resources);
+    const lead = leadSchools(title);
+    // Plain "LS" on a Distribution event: use the school's only stream
+    if (!nums.length && plainLS(resources) && /distribution/i.test(String(eventType ?? ""))) {
+      const links = [];
+      (lead.matchup && lead.schools.length ? lead.schools.slice(0, 1) : schoolsIn(title)).forEach((school) => {
+        const ids = Object.entries(STREAMS[school]);
+        if (ids.length === 1) links.push({ name: school + " " + ids[0][0], url: STREAM_BASE + ids[0][1], url2: STREAM_BASE_2 + ids[0][1] });
+      });
+      const multi = links.length > 1;
+      links.forEach((l) => l.label = multi ? "Listen: " + l.name : "Listen");
+      return { links, unmatched: !links.length };
+    }
+    if (!nums.length) return { links: [], unmatched: false };
+    // Pair each LS number with the school named in the same resource
+    // ("UConn Huskies - LS 1"), or with the title's school when the resource names none.
+    const pairs = [];
+    String(resources ?? "").split(/\s*[,;]\s*/).forEach((seg) => {
+      const segNums = lsNumbers(seg);
+      if (!segNums.length) return;
+      // Prefer the title's school when the resource names a different one
+      // (e.g. a "Southern Cal" resource on a USC event shouldn't pick Cal).
+      // In a matchup, the first team listed wins when we know its streams.
+      const inTitle = schoolsIn(title);
+      let schools = schoolsIn(seg);
+      if (lead.matchup && lead.schools.length) schools = lead.schools.slice(0, 1);
+      else if (!schools.length || (inTitle.length && !schools.some((sc) => inTitle.includes(sc)))) schools = inTitle;
+      schools.forEach((sc) => segNums.forEach((n) => { if (!pairs.some(([a, b]) => a === sc && b === n)) pairs.push([sc, n]); }));
+    });
+    const links = [];
+    pairs.forEach(([school, n]) => {
+      const id = STREAMS[school][n];
+      if (id) links.push({ name: school + " " + n, url: STREAM_BASE + id, url2: STREAM_BASE_2 + id });
+    });
+    const multi = links.length > 1;
+    links.forEach((l) => l.label = multi ? "Listen: " + l.name : "Listen");
+    return { links, unmatched: !links.length };
+  }
+
+  // ---------- time parsing ----------
+  // Read a date-only value like 2026-10-05, 10/5/2026 or 10/5/26 as a local date
+  function parseDateOnly(value) {
+    const s = String(value ?? "").trim();
+    if (!s) return null;
+    let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+    m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/);
+    if (m) { let y = +m[3]; if (y < 100) y += 2000; return new Date(y, +m[1] - 1, +m[2]); }
+    const d = new Date(s);
+    return isNaN(d) ? null : new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+
+  // Read a start or end time. When the time has no date of its own,
+  // the matching date column supplies it (or today, if there isn't one).
+  function parseTime(value, dateValue) {
+    const s = String(value ?? "").trim();
+    if (!s) return null;
+    const t = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([ap]\.?m\.?)?$/i);
+    if (t) {
+      let h = +t[1];
+      const ap = t[4] && t[4][0].toLowerCase();
+      if (ap === "p" && h < 12) h += 12;
+      if (ap === "a" && h === 12) h = 0;
+      const day = parseDateOnly(dateValue);
+      const d = day || new Date();
+      d.setHours(h, +t[2], +(t[3] || 0), 0);
+      return { date: d, hasDate: !!day };
+    }
+    const d = new Date(s.replace(/^(\d{4}-\d{2}-\d{2})\s+(\d)/, "$1T$2"));
+    return isNaN(d) ? null : { date: d, hasDate: true };
+  }
+
+  const fmtTime = (d) => d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const fmtDay = (d) => d.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const dayKey = (d) => d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate();
+  function fmtSpan(ms) {
+    const mins = Math.max(1, Math.ceil(ms / 60000));
+    const h = Math.floor(mins / 60), m = mins % 60;
+    return [h ? h + " hr" : "", m ? m + " min" : ""].filter(Boolean).join(" ");
+  }
+  function fmtClock(ms) {
+    const s = Math.max(0, Math.floor(ms / 1000));
+    const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+    const p = (n) => String(n).padStart(2, "0");
+    return (d ? d + "d " : "") + (h || d ? h + ":" + p(m) : m) + ":" + p(sec);
+  }
+
+  // ---------- build events from rows ----------
+  // Always listed under External, whatever their resources or location say
+  const ALWAYS_EXTERNAL = [/\bsouth dakota fbcs\b/i, /\bsouth dakota state fbcs\b/i, /\btulsa\b/i,
+    /\bnorth\s+dakota\s+st(?:ate|\.)?(?![a-z])/i, /\bndsu\b/i,
+    /\bill\s*-?\s*st(?:ate|\.)?(?![a-z])/i, /\billinois\s+st(?:ate|\.)?(?![a-z])/i,
+    /\bnebraska\s*-?\s*omaha\b/i,
+    /\bsouth\s+dakota\b/i,                                       // South Dakota and South Dakota State
+    /\bjackrabbits\b/i,
+    /(?<!southern\s+)\bcal\b(?!\s*(?:poly|state|st\b|baptist))/i, /\bgolden\s+bears\b/i, // Cal (not Southern Cal, Cal Poly, Cal State, Cal Baptist)
+    /\bsouthern\s+illinois\b/i];
+  const forcedExternal = (title, calendar) =>
+    ALWAYS_EXTERNAL.some((re) => re.test(String(title ?? "")) || re.test(String(calendar ?? "")));
+
+  // Always in the Jeff City list, whatever else the event says: Wyoming
+  // (also written Wyo or UWyo), found in the title, calendar name or resources
+  const ALWAYS_JEFF_CITY = [/\bwyoming\b/i, /\bu?wyo\b/i];
+  const forcedJeffCity = (title, calendar, resources) =>
+    ALWAYS_JEFF_CITY.some((re) => [title, calendar, resources].some((v) => re.test(String(v ?? ""))));
+
+  // Which list an event goes in. In a matchup, the first team listed decides:
+  // "North Dakota State vs Wyoming" is a North Dakota State (External) event,
+  // "Wyoming @ North Dakota State" is a Wyoming (Jeff City) event.
+  function sectionFor(title, calendar, resources, location, resIdx) {
+    const m = String(title || "").match(/^(.*?)\s+(?:vs\.?|v\.?|@|at)\s+\S/i);
+    const lead = m ? m[1] : String(title || "");
+    let force = null;
+    if (forcedJeffCity(lead, "", "")) force = "jc";
+    else if (forcedExternal(lead, "")) force = "ext";
+    else if (!m) {
+      // No matchup: the calendar name and resources can decide too
+      if (forcedJeffCity("", calendar, resources)) force = "jc";
+      else if (forcedExternal("", calendar)) force = "ext";
+    } else if (forcedJeffCity("", calendar, "")) force = "jc";
+    else if (forcedExternal("", calendar)) force = "ext";
+    if (force === "jc") return { jeffCity: true, external: false };
+    if (force === "ext") return { jeffCity: false, external: true };
+    const res = String(resources ?? "");
+    return {
+      jeffCity: resIdx < 0 || /xds|prism/i.test(res) || /tcu/i.test(title) ||
+        /\b(hou|houston)\b/i.test(lead) || /\b(hou|houston)\b/i.test(String(calendar ?? "")),
+      external: String(location ?? "").toLowerCase().includes("external")
+    };
+  }
+
+  let builtDay = "";
+  function build(resetAlerts) {
+    const header = rows[0] || [];
+    const hasHeader = header.some((h) => /title|name|start|end/i.test(String(h)));
+    const find = (re) => hasHeader ? header.findIndex((h) => re.test(String(h).trim())) : -1;
+
+    let ti = find(/^title$/i);
+    if (ti < 0) ti = find(/title|name|event/i);
+    ti = Math.max(ti, 0);
+    const si = 3, ei = 5; // columns 4 and 6
+    // Start and end date columns, found by header name, e.g. "startDate" or "Start Date"
+    const sdIdx = find(/^start\s*_?date$/i);
+    const edIdx = find(/^end\s*_?date$/i);
+    const calIdx = find(/^calendar\s*_?name$/i);
+    const resIdx = find(/^resources?$/i);
+    const locIdx = find(/^location$/i);
+    let typeIdx = find(/^event\s*_?type$/i);
+    if (typeIdx < 0) typeIdx = find(/type/i);
+
+    const body = hasHeader ? rows.slice(1) : rows;
+    const isEngineering = (r) => calIdx >= 0
+      ? String(r[calIdx] ?? "").trim().toLowerCase() === "engineering on duty"
+      : r.some((c) => String(c ?? "").trim().toLowerCase() === "engineering on duty");
+
+    const seen = {};
+    let excluded = 0;
+    let notYet = 0;
+    const noTime = [];
+    events = [];
+    body.forEach((r) => {
+      if (isEngineering(r)) { excluded++; return; }
+      // CSV rows with a date but no start time: hold them until that date
+      // arrives locally, then list them in the no-time banner
+      const sdRaw = sdIdx >= 0 ? String(r[sdIdx] ?? "").trim() : "";
+      if (!String(r[si] ?? "").trim() && sdRaw) {
+        const first = parseDateOnly(sdRaw);
+        if (first) {
+          const edRaw = edIdx >= 0 ? String(r[edIdx] ?? "").trim() : "";
+          const last = parseDateOnly(edRaw || sdRaw) || first;
+          const today = new Date(); today.setHours(0, 0, 0, 0);
+          if (first <= today && today <= last) {
+            noTime.push({ title: String(r[ti] ?? "").trim() || "Untitled event", calendar: calIdx >= 0 ? String(r[calIdx] ?? "").trim() : "", date: sdRaw });
+          } else {
+            notYet++;
+          }
+          return;
+        }
+      }
+      if (String(r[si] ?? "").trim() === "Time TBD") {
+        const first = parseDateOnly(r[8]);
+        const last = parseDateOnly(r[9]) || first;
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        if (!first || (first <= today && today <= last)) {
+          noTime.push({ title: String(r[ti] ?? "").trim() || "Untitled event", calendar: calIdx >= 0 ? String(r[calIdx] ?? "").trim() : "", date: String(r[8] ?? "").trim() });
+        } else {
+          notYet++;
+        }
+        return;
+      }
+      const title = String(r[ti] ?? "").trim() || "Untitled event";
+      const startRaw = String(r[si] ?? "").trim(), endRaw = String(r[ei] ?? "").trim();
+      const startDate = sdIdx >= 0 ? r[sdIdx] : "";
+      const endDate = edIdx >= 0 ? r[edIdx] : startDate; // no end date: assume the start date
+      const start = parseTime(startRaw, startDate), end = parseTime(endRaw, endDate);
+      if (start && end && edIdx < 0 && /^\d{1,2}:\d{2}/.test(endRaw) && end.date < start.date) end.date.setDate(end.date.getDate() + 1); // overnight
+      const base = title + "|" + startRaw + "|" + endRaw;
+      seen[base] = (seen[base] || 0) + 1;
+      events.push({
+        id: base + "|" + seen[base],
+        title, startRaw, endRaw, start, end,
+        calendar: calIdx >= 0 ? String(r[calIdx] ?? "").trim() : "",
+        eventType: typeIdx >= 0 ? String(r[typeIdx] ?? "").trim() : "",
+        // Main list: resources contain XDS or Prism, or the title contains TCU
+        ...sectionFor(title, r[calIdx], resIdx >= 0 ? r[resIdx] : "", locIdx >= 0 ? r[locIdx] : "", resIdx),
+        listen: listenLinks(title, resIdx >= 0 ? r[resIdx] : "", typeIdx >= 0 ? r[typeIdx] : "")
+      });
+    });
+    events.sort((a, b) => (a.start && b.start) ? a.start.date - b.start.date : a.start ? -1 : b.start ? 1 : 0);
+    events.meta = { excluded, noResources: resIdx < 0 && hasHeader, noTime: noTime.length, notYet };
+    builtDay = dayKey(new Date());
+    renderNoTimeBanner(noTime);
+
+    if (resetAlerts !== false) lastState.clear(); // a fresh schedule starts without alerts for events already underway
+    document.getElementById("app").classList.add("loaded");
+    updateWake();
+    attachLog();
+    render();
+  }
+
+  // ---------- render list ----------
+  $("search").addEventListener("input", render);
+  $("restore").addEventListener("click", () => { deleted = new Set(); save(); render(); });
+  $("schedule").addEventListener("click", (e) => {
+    const btn = e.target.closest(".delete");
+    if (!btn) return;
+    deleted.add(btn.dataset.id);
+    save(); render();
+  });
+
+  function visible() {
+    const q = $("search").value.trim().toLowerCase();
+    return events.filter((e) => !deleted.has(e.id) && (!q || e.title.toLowerCase().includes(q)));
+  }
+
+  // Main list: XDS or Prism resources, or TCU in the title. Bottom: everything else, split into
+  // External (location says External) and Not Produced in Jeff City.
+  function split(list) {
+    return {
+      main: list.filter((e) => e.jeffCity),
+      other: list.filter((e) => !e.jeffCity && !e.external),
+      ext: list.filter((e) => !e.jeffCity && e.external)
+    };
+  }
+
+  // ---------- closures log (closures-MMDDYYYY.txt) ----------
+  // Lines like "14:10:00:523| ALEOB filtered!" (local time of day). A code is a
+  // school abbreviation from RelayNameArray.csv plus EOB, ID or LOC, e.g.
+  // ALEOB = Alabama, ORLOC = Oregon, MTSTEOB = Montana State.
+  const RELAY = [["Alabama", "AL"], ["Arkansas", "ARK"], ["Boise", "BSU"], ["colorado", "col"], ["colorado state", "cost"], ["connecticut", "UCON"], ["duke", "duk"], ["florida", "fl"], ["gonzaga", "gonz"], ["houston", ""], ["idaho", "id"], ["illinois", "il"], ["indiana", "in"], ["iowa", "ia"], ["iowa state", "isu"], ["Royals", "ryls"], ["kansas", "ku"], ["kansas state", "ksu"], ["louisville", "lou"], ["marquette", "marq"], ["marshall", "mrsh"], ["michigan", "mich"], ["minnesota", "goph"], ["timberwolves", "twlvs"], ["twins", "twns"], ["vikings", "viks"], ["missouri", "miz"], ["lynx", "lynx"], ["missouri state", "most"], ["montana", "mt"], ["montana state", "mtst"], ["NC state", "ncst"], ["north carolina", "nc"], ["oklahoma", "ou"], ["oklahoma state", "osu"], ["oregon", "or"], ["oregon state", "ors"], ["purdue", "pu"], ["south carolina", "SC"], ["syracuse", "syr"], ["tennessee", "tn"], ["texas tech", "ttu"], ["vanderbilt", "van"], ["wake forest", "wak"], ["washington", "wash"], ["west virginia", "wvu"], ["western kentucky", "wky"], ["wisconsin", "wis"], ["wyoming", "wy"]];
+  const RELAY_BY_ABBR = {};
+  RELAY.forEach(([school, abbr]) => { if (abbr) RELAY_BY_ABBR[abbr.toUpperCase()] = school.trim(); });
+  const RELAY_SCHOOLS = RELAY.map(([school]) => school.trim()).filter(Boolean);
+  const PRO_TEAMS = ["royals", "twins", "vikings", "lynx", "timberwolves"];
+  const CLOSURE_KEY = "event-watcher-closures";
+  let closures = null; // { label, items: [{ at, code, school }], filtered, unmatched }
+  const closuresOpen = new Set();
+
+  const looksLikeClosures = (t) => /^\d{2}:\d{2}:\d{2}(?::\d+)?\|.*filtered!/m.test(String(t));
+
+  function parseClosures(text, fileName) {
+    const lines = String(text).split(/\r?\n/);
+    // Local midnight of the log's day, from a sync line: time of day + [UTC stamp]
+    let dayStart = null;
+    for (const line of lines) {
+      const m = line.match(/^(\d{2}):(\d{2}):(\d{2})(?::\d+)?\|.*\[(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})\]/);
+      if (m) {
+        const utc = Date.UTC(+m[4], +m[5] - 1, +m[6], +m[7], +m[8], +m[9]);
+        dayStart = utc - ((+m[1] * 60 + +m[2]) * 60 + +m[3]) * 1000;
+        break;
+      }
+    }
+    if (dayStart === null) {
+      const f = String(fileName || "").match(/(\d{2})(\d{2})(\d{4})/);
+      const d = f ? new Date(+f[3], +f[1] - 1, +f[2]) : new Date();
+      d.setHours(0, 0, 0, 0);
+      dayStart = d.getTime();
+    }
+    const items = [];
+    let filtered = 0, unmatched = 0;
+    lines.forEach((line) => {
+      const m = line.match(/^(\d{2}):(\d{2}):(\d{2})(?::\d+)?\|\s*([A-Za-z0-9_-]+)\s+filtered!/);
+      if (!m) return;
+      filtered++;
+      const code = m[4].toUpperCase();
+      // abbreviation + EOB/ID/LOC, then MB, WB, VB, LX or HK for men's and women's
+      // basketball, volleyball, lacrosse and hockey (e.g. ALEOBMB); no ending otherwise
+      const parts = code.match(/^(.+?)(EOB|ID|LOC)(MB|WB|VB|LX|HK)?$/);
+      const school = parts && RELAY_BY_ABBR[parts[1]];
+      if (!school) { unmatched++; return; }
+      items.push({ at: dayStart + ((+m[1] * 60 + +m[2]) * 60 + +m[3]) * 1000, code, school, sport: parts[3] || "" });
+    });
+    items.sort((a, b) => a.at - b.at);
+    const day = new Date(dayStart + 12 * 3600000);
+    return { label: (day.getMonth() + 1) + "/" + day.getDate() + "/" + day.getFullYear(), items, filtered, unmatched };
+  }
+
+  // Schools from RelayNameArray named in a title. Longer names win ("Iowa State"
+  // over "Iowa"); a name followed by "State" that isn't on the list is a
+  // different school; pro teams win over their state's school.
+  function relaySchoolsIn(text) {
+    const t = words(canonTitle(text)).join(" ").replace(/\buconn\b/g, "connecticut")
+      .replace(/\bnorth carolina state\b/g, "nc state")
+      .replace(/\bboise state\b/g, "boise") // the list's "Boise" (BSU) is Boise State
+      .replace(/\billini\b/g, "illinois")                    // Fighting Illini
+      .replace(/\bill\b(?!\s+state\b)/g, "illinois");        // ILL, but not ILL St (Illinois State)
+    const hits = [];
+    RELAY_SCHOOLS.forEach((name) => {
+      const re = new RegExp("(^|[^a-z0-9])(" + escRe(name.toLowerCase()) + ")(?![a-z0-9])", "g");
+      let m;
+      while ((m = re.exec(t))) {
+        const start = m.index + m[1].length, end = start + m[2].length;
+        if (/^\s+state\b/.test(t.slice(end)) && !RELAY_SCHOOLS.some((n) => n.toLowerCase() === name.toLowerCase() + " state")) continue;
+        // "Southern Illinois", "Northern Iowa", "Central Michigan"... are different schools
+        if (/\b(?:north|south|east|west|central)(?:ern)?\s+$/.test(t.slice(0, start)) &&
+            !RELAY_SCHOOLS.some((n) => t.slice(0, end).endsWith(n.toLowerCase()) && n.length > name.length)) continue;
+        hits.push({ name, start, end });
+      }
+    });
+    let kept = hits.filter((h) => !hits.some((o) => o !== h && o.start <= h.start && o.end >= h.end && (o.end - o.start) > (h.end - h.start)));
+    if (kept.some((h) => PRO_TEAMS.includes(h.name.toLowerCase()))) kept = kept.filter((h) => !/^(minnesota|kansas)$/i.test(h.name));
+    kept.sort((x, y) => x.start - y.start); // in the order they appear in the title
+    return [...new Set(kept.map((h) => h.name))];
+  }
+
+  // Sport code a show's closures end with: MB men's basketball, WB women's
+  // basketball, VB volleyball, LX lacrosse, HK hockey; "" for everything else
+  function closureSportFor(e) {
+    const t = [e.title, e.calendar, e.eventType].join(" ").toLowerCase();
+    if (/\bwbb\b|women'?s basketball/.test(t)) return "WB";
+    if (/\bmbb\b|men'?s basketball/.test(t)) return "MB";
+    if (/\bvb\b|volleyball/.test(t)) return "VB";
+    if (/\blax\b|lacrosse/.test(t)) return "LX";
+    if (/hockey|\b[mw]?hky\b|\bih\b/.test(t)) return "HK";
+    return "";
+  }
+
+  function closuresFor(e) {
+    if (!closures || !closures.items || !closures.items.length) return [];
+    // Only the first team listed counts: "Idaho vs Montana State" gets Idaho's
+    // closures, and "USC vs. Washington" gets none (USC isn't on the relay list)
+    const m = String(e.title || "").match(/^(.*?)\s+(?:vs\.?|v\.?|@|at)\s+\S/i);
+    let schools = relaySchoolsIn(m ? m[1] : e.title);
+    if (!schools.length && !m && e.calendar) schools = relaySchoolsIn(e.calendar);
+    if (!schools.length) return [];
+    schools = schools.slice(0, 1);
+    const sport = closureSportFor(e);
+    // Schools whose codes for a sport carry no sport ending
+    // (Gonzaga men's basketball is just GONZLOC, GONZID, GONZEOB)
+    const NO_ENDING = { gonzaga: ["MB"] };
+    const plainFor = (school) => (NO_ENDING[school.toLowerCase()] || []).includes(sport);
+    return closures.items.filter((c) => schools.includes(c.school) &&
+      ((c.sport || "") === sport || (plainFor(c.school) && !c.sport)));
+  }
+
+  const closureType = (code) => (String(code).match(/(EOB|ID|LOC)(?:MB|WB|VB|LX|HK)?$/) || [])[1];
+  const TEST_SPAN_MS = 5 * 60 * 1000;
+
+  // Closures for a show, plus which are test closures (a LOC, ID and EOB all
+  // within 5 minutes, before the show starts) and the first EOB during the show
+  function analyzeClosures(e) {
+    const list = closuresFor(e);
+    const s = e.start ? e.start.date.getTime() : null, en = e.end ? e.end.date.getTime() : null;
+    const during = (c) => s !== null && en !== null && c.at >= s && c.at <= en;
+    const test = new Set();
+    if (s !== null) {
+      const before = list.filter((c) => c.at < s);
+      before.forEach((first, i) => {
+        const win = before.slice(i).filter((c) => c.at - first.at <= TEST_SPAN_MS);
+        const pick = {};
+        win.forEach((c) => { const t = closureType(c.code); if (t && !pick[t]) pick[t] = c; });
+        if (pick.LOC && pick.ID && pick.EOB) [pick.LOC, pick.ID, pick.EOB].forEach((c) => test.add(c));
+      });
+    }
+    const eob = list.find((c) => during(c) && closureType(c.code) === "EOB") || null;
+    return { list, during, test, eob };
+  }
+
+  // Note on the main listing when an EOB came in during the show
+  function eobHtml(e) {
+    const { eob } = analyzeClosures(e);
+    if (!eob) return "";
+    const t = new Date(eob.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    return `<div class="log"><span class="chip eob" title="${escapeHtml(eob.code)} at ${escapeHtml(t)}">EOB received ${escapeHtml(t)}</span></div>`;
+  }
+
+  function closuresHtml(e) {
+    const { list, during, test } = analyzeClosures(e);
+    if (!list.length) return "";
+    const nDuring = list.filter(during).length;
+    const nTest = test.size;
+    const fmtSec = (ms) => new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
+    // Total leaves out test closures; tests are counted on their own
+    const bits = [(list.length - nTest) + " total"];
+    if (nTest) bits.push(nTest + " test");
+    bits.push(nDuring + " during show");
+    return `<details class="closures" data-id="${escapeHtml(e.id)}"${closuresOpen.has(e.id) ? " open" : ""}>
+      <summary>Closures: ${bits.join(", ")}</summary>
+      <div class="wrap"><table>
+        <thead><tr><th>Time</th><th>Closure</th><th></th></tr></thead>
+        <tbody>${list.map((c) => {
+          const isTest = test.has(c), isDuring = during(c);
+          const cls = isTest ? "test" : isDuring ? "during" : "";
+          const tag = isTest ? '<span class="tag test">Test closure</span>' : isDuring ? '<span class="tag">During show</span>' : "";
+          return `<tr class="${cls}"><td>${escapeHtml(fmtSec(c.at))}</td><td>${escapeHtml(c.code)}</td><td>${tag}</td></tr>`;
+        }).join("")}</tbody>
+      </table></div>
+    </details>`;
+  }
+
+  function showClosureStatus() {
+    $("closureBar").hidden = !closures;
+    if (!closures) return;
+    const n = closures.items.length;
+    $("closureStatus").textContent = `Closures from the ${closures.label} log: ${n} matched to schools` +
+      (closures.unmatched ? `, ${closures.unmatched} other filtered closures ignored.` : ".") +
+      (closureNote ? " " + closureNote : "");
+  }
+
+  function applyClosures(text, name, auto) {
+    closures = parseClosures(text, name);
+    closures.source = auto ? "auto" : "manual";
+    closures.file = name;
+    try { localStorage.setItem(CLOSURE_KEY, JSON.stringify(closures)); } catch (e) {}
+    showClosureStatus();
+    if (events.length) render();
+  }
+
+  $("closureFile").addEventListener("change", (e) => {
+    const f = e.target.files[0];
+    e.target.value = "";
+    if (f) f.text().then((t) => { closureNote = VIA_HELPER ? "Imported " + f.name + "; switches back to today's log when it changes." : ""; applyClosures(t, f.name); });
+  });
+  $("closureFileLabel").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("closureFile").click(); }
+  });
+  $("closureClear").addEventListener("click", () => {
+    closures = null;
+    try { localStorage.removeItem(CLOSURE_KEY); } catch (e) {}
+    showClosureStatus();
+    if (events.length) render();
+  });
+  $("schedule").addEventListener("toggle", (e) => {
+    const d = e.target;
+    if (!d.classList || !d.classList.contains("closures")) return;
+    if (d.open) closuresOpen.add(d.dataset.id); else closuresOpen.delete(d.dataset.id);
+  }, true);
+  try { closures = JSON.parse(localStorage.getItem(CLOSURE_KEY) || "null"); } catch (e) { closures = null; }
+
+  // Pull today's log (I:\Closure Logs\closures-MMDDYYYY.txt) through the
+  // Start Event Watcher helper, every minute. A file you import yourself stays
+  // until today's log changes.
+  const CLOSURE_CHECK_MS = 60000;
+  let closureNote = "";
+  let lastClosureText = null, lastClosureFile = "";
+  function todaysClosureName() {
+    const d = new Date(), p = (n) => String(n).padStart(2, "0");
+    return p(d.getMonth() + 1) + p(d.getDate()) + d.getFullYear();
+  }
+  async function checkClosureLog() {
+    if (!VIA_HELPER) return;
+    const stamp = todaysClosureName();
+    const file = "closures-" + stamp + ".txt";
+    try {
+      const r = await fetch("closures?date=" + stamp, { cache: "no-store" });
+      if (r.status === 404) {
+        closureNote = file + " isn't there yet; checking every minute.";
+        $("closureBar").hidden = false;
+        if (!closures) $("closureStatus").textContent = "No closures yet: " + closureNote;
+        else showClosureStatus();
+        return;
+      }
+      if (!r.ok) throw new Error("couldn't read " + file);
+      const t = await r.text();
+      closureNote = "Auto-updated from " + file + ", checked " + fmtTime(new Date()) + ".";
+      if (t !== lastClosureText || file !== lastClosureFile) {
+        lastClosureText = t; lastClosureFile = file;
+        applyClosures(t, file, true);
+      } else showClosureStatus();
+    } catch (e) {
+      closureNote = "Couldn't reach the closure log (" + e.message + "). Check that the I: drive is connected.";
+      $("closureBar").hidden = false;
+      if (!closures) $("closureStatus").textContent = closureNote;
+      else showClosureStatus();
+    }
+  }
+  showClosureStatus();
+
+  // ---------- card and port data (tab-delimited text) ----------
+  // Columns: 1 title, 2 id, 3 start date, 4 end date (or NULL), 5 weekday,
+  // 7 "Virtual" tag, 8 card, 9 port, 10 start time (local), 11 duration.
+  const LOG_KEY = "event-watcher-log";
+  let logText = "";
+  let cardPortNote = "";
+  let logToday = [];      // rows that apply today
+  let logUnmatched = [];  // today's rows with no matching event
+
+  const hms = (v) => { const m = String(v || "").trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/); return m ? [+m[1], +m[2], +(m[3] || 0)] : null; };
+  const ymd = (v) => { const m = String(v || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; };
+  const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+
+  function parseLog(text, day) {
+    const d0 = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+    const out = [];
+    let total = 0;
+    String(text || "").split(/\r?\n/).forEach((line) => {
+      const c = line.split("\t");
+      // Some rows leave out the ID column (column 2), so the date comes second;
+      // put an empty ID back so the other columns line up
+      if (c.length >= 2 && /^\d{4}-\d{2}-\d{2}/.test(String(c[1]).trim())) c.splice(1, 0, "");
+      if (c.length < 11) return;
+      const t = hms(c[9]), dur = hms(c[10]);
+      if (!t || !dur) return; // header or incomplete row
+      total++;
+      const from = ymd(c[2]), to = ymd(c[3]);
+      if (from && d0 < from) return;
+      if (to && d0 > to) return;
+      const wd = String(c[4] || "").trim().toLowerCase();
+      if (WEEKDAYS.includes(wd) && wd !== WEEKDAYS[d0.getDay()]) return;
+      const start = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate(), t[0], t[1], t[2]);
+      const end = new Date(start.getTime() + ((dur[0] * 60 + dur[1]) * 60 + dur[2]) * 1000);
+      out.push({ title: c[0].trim(), cart: String(c[7] || "").trim(), port: String(c[8] || "").trim(), virtual: /virtual/i.test(String(c[6] || "")), start, end });
+    });
+    out.total = total;
+    return out;
+  }
+
+  // Title similarity: shared words, same school, and nearby start times
+  const ABBR = { w: "west", n: "north", s: "south", e: "east", st: "state", fb: "football", mbb: "basketball", wbb: "basketball" };
+  const STOP = new Set(["the", "vs", "at", "of", "and", "a", "an", "v"]);
+  const words = (t) => norm(t).replace(/[^a-z0-9' ]+/g, " ").split(/\s+/).filter(Boolean)
+    .map((w) => ABBR[w] || w).filter((w) => !STOP.has(w));
+  // Names that mean the same school when matching card/port rows to events
+  function canonTitle(t) {
+    return String(t || "")
+      .replace(/\bMIN\s*-\s*Gophers?\b/gi, "Minnesota")
+      // Gopher Hockey (calendar) = MIN-Gopher Hockey Show (card/port), not the game
+      .replace(/\bGophers?\s+Hockey(?:\s+Show)?\b(?![\s\S]*\s(?:vs\.?|v\.?|@|at)\s)/gi, (m, off, str) =>
+        /\s(?:vs\.?|v\.?|@|at)\s/i.test(str.slice(0, off)) ? m : "Minnesota Hockey Show")
+      .replace(/\bMissouri\s+St(?:ate|\.)?(?![a-z])/gi, "Missouri State") // Missouri State stays separate
+      .replace(/\bMizzou\b/gi, "Missouri")
+      .replace(/\bKansas\s*-?\s*St(?:ate|\.)?(?![a-z])/gi, "Kansas State") // kansas-st
+      .replace(/\bK\s*-?\s*State\b/gi, "Kansas State")                     // K State, K-State
+      .replace(/\bMN\s*-?\s*Vikings\b/gi, "Minnesota Vikings")
+      .replace(/\bHou\b/gi, "Houston")
+      .replace(/\bW\.?\s*Kentucky\b/gi, "Western Kentucky")
+      .replace(/\bLouisiana\s+Tech\b/gi, "LA Tech") // LA Tech is separate from Louisiana
+      // card/port names for the high school scoreboard shows
+      .replace(/\bMN\s+HS\s+After\s+the\s+Game\b/gi, "MN HS Scoreboard Show")
+      .replace(/\bIS\s+HS\s+Scoreboard\b/gi, "IA HS Scoreboard")
+      // OU Huddle (calendar) = Oklahoma FB Huddle (card/port)
+      .replace(/\bOU\s+Huddle\b/gi, "Oklahoma Huddle")
+      // OU Football Press Conference (calendar) = Oklahoma Press Conference (card/port)
+      .replace(/\bOU\s+Football\s+Press\s+Conference\b/gi, "Oklahoma Press Conference")
+      // OU Sooner Coaches Corner Show (calendar) = Oklahoma Coach's Corner (card/port)
+      .replace(/\bOU\s+Sooner\s+Coach(?:es|['\u2019]?s)?\s+Corner(?:\s+Show)?\b/gi, "Oklahoma Coaches Corner")
+      .replace(/\bCoach['\u2019]s\s+Corner\b/gi, "Coaches Corner")
+      // KU Pre-game show = Crimson and Blue Show
+      .replace(/\b(?:KU|Kansas)\s+(?:Football\s+|Basketball\s+|FB\s+|MBB\s+)?Pre\s*-?\s*game(?:\s+Show)?\b/gi, "Kansas Crimson Blue Show")
+      // Kansas FB Crimson/Blue Show (card/port) = Crimson and Blue Show (Kansas FB) (calendar)
+      .replace(/\b(?:(?:KU|Kansas)\s+(?:FB\s+|Football\s+)?)?Crimson\s*(?:\s(?:and|&|n)\s|\/|&|-)\s*Blue(?:\s+Show)?\b/gi, "Kansas Crimson Blue Show")
+      // MN-T'Wolves (calendar) = Minnesota Timberwolves (card/port)
+      .replace(/\bMN\s*-?\s*T['\u2019]?\s*Wolves\b/gi, "Minnesota Timberwolves")
+      .replace(/\bT['\u2019]?\s*Wolves\b/gi, "Timberwolves");
+  }
+
+  function matchScore(row, e) {
+    const a = new Set(words(canonTitle(row.title))), b = new Set(words(canonTitle(e.title)));
+    // High school shows: the state before "HS" has to agree (MN HS vs IA HS)
+    const hsState = (t) => (canonTitle(t).toLowerCase().match(/\b([a-z]{2})\s+hs\b/) || [])[1];
+    const ha = hsState(row.title), hb = hsState(e.title);
+    if (ha && hb && ha !== hb) return 0;
+    // Different kinds of show for the same school don't match (a press
+    // conference row shouldn't land on the Huddle show)
+    const kind = (t) => { const x = canonTitle(t).toLowerCase(); return /press\s+conference/.test(x) ? "presser" : /\bhuddle\b/.test(x) ? "huddle" : /\bcoaches\s+corner\b/.test(x) ? "corner" : ""; };
+    const ka = kind(row.title), kb = kind(e.title);
+    if (ka && kb && ka !== kb) return 0;
+    // The Gopher Hockey show and the Gopher hockey game are different rows
+    const hkShow = (t) => /\bminnesota\s+hockey\s+show\b/i.test(canonTitle(t));
+    if (hkShow(row.title) !== hkShow(e.title)) return 0;
+    // The KU pre-game (Crimson and Blue Show) and the KU game are different rows
+    const kuPre = (t) => /\bkansas\s+crimson\s+blue\s+show\b/i.test(canonTitle(t));
+    if (kuPre(row.title) !== kuPre(e.title)) return 0;
+    const shared = [...a].filter((w) => b.has(w)).length;
+    let score = shared / (new Set([...a, ...b]).size || 1);
+    // Schools are compared using only the first team listed in a matchup:
+    // "Indiana @ Rutgers" is an Indiana show, "Rutgers vs Indiana" is not
+    const firstTeam = (t) => { const m = String(t).match(/^(.*?)\s+(?:vs\.?|v\.?|@|at)\s+\S/i); return m ? m[1] : t; };
+    const aTeam = new Set(words(firstTeam(canonTitle(row.title))));
+    const bTeam = new Set(words(firstTeam(canonTitle(e.title))));
+    const sa = schoolsIn([...aTeam].join(" ")), sb = schoolsIn([...bTeam].join(" "));
+    if (sa.length && sb.length) {
+      if (!sa.some((x) => sb.includes(x))) return 0; // different schools never match
+      score += 0.4;
+    } else if (sa.length || sb.length) {
+      // Only one side names a known school: the other side's first team must
+      // contain all of that school's words (so "Western Kentucky" never matches
+      // plain "Kentucky")
+      const [known, otherWords] = sa.length ? [sa, bTeam] : [sb, aTeam];
+      const hasAll = (name) => words(name).every((w) => otherWords.has(w));
+      if (!known.some(hasAll)) return 0;
+    }
+    if (e.start) {
+      const diff = Math.abs(e.start.date - row.start) / 60000;
+      score += diff <= 30 ? 0.3 : diff <= 90 ? 0.15 : diff > 360 ? -0.3 : 0;
+    }
+    return score;
+  }
+
+  function attachLog() {
+    events.forEach((e) => { e.log = null; });
+    logToday = parseLog(logText, new Date());
+    const pairs = [];
+    logToday.forEach((row, i) => events.forEach((e, j) => {
+      const sc = matchScore(row, e);
+      if (sc >= 0.6) pairs.push([sc, i, j]);
+    }));
+    pairs.sort((x, y) => y[0] - x[0]);
+    const usedRow = new Set(), usedEv = new Set();
+    pairs.forEach(([, i, j]) => {
+      if (usedRow.has(i) || usedEv.has(j)) return;
+      usedRow.add(i); usedEv.add(j);
+      events[j].log = logToday[i];
+    });
+    logUnmatched = logToday.filter((_, i) => !usedRow.has(i)).sort((x, y) => x.start - y.start);
+    renderLogBanner();
+    const matched = logToday.length - logUnmatched.length;
+    $("logBar").hidden = !logText.trim();
+    $("logStatus").textContent = logText.trim()
+      ? `${logParsedTotal()} rows read, ${logToday.length} for today, ${matched} matched to events.` + (cardPortNote ? " " + cardPortNote : "")
+      : cardPortNote;
+    if (cardPortNote) $("logBar").hidden = false;
+  }
+  const logParsedTotal = () => logToday.total || 0;
+
+  // The card/port start should fall within the 15 minutes before the event starts.
+  // Anything earlier or later gets highlighted.
+  const LOG_LEAD_MIN = 15;
+  // Wyoming broadcasts that start at :07 past the hour allow a 17-minute lead
+  function leadMinutesFor(e) {
+    const wyoming = /\bwyoming\b/i.test(e.title) || /\bwyoming\b/i.test(e.calendar || "");
+    if (wyoming && e.start && e.start.date.getMinutes() === 7) return 17;
+    return LOG_LEAD_MIN;
+  }
+
+  function logTimeChips(e) {
+    const range = escapeHtml(fmtTime(e.log.start)) + " – " + escapeHtml(fmtTime(e.log.end));
+    if (!e.start) return `<span class="chip">${range}</span>`;
+    const before = Math.round((e.start.date - e.log.start) / 60000); // minutes the card/port start is ahead of the event
+    const lead = leadMinutesFor(e);
+    if (before >= 0 && before <= lead) return `<span class="chip">${range}</span>`;
+    const note = before > 0 ? before + " min before start" : (-before) + " min after start";
+    return `<span class="chip warn" title="Card/port start isn't within ${lead} minutes before the event start">${range}</span><span class="chip warn">${note}</span>`;
+  }
+
+  // Banner for today's events that have a date but no scheduled time
+  // Deleted no-time warnings, kept only while those events are still listed
+  const TBD_DISMISS_KEY = "event-watcher-notime-dismissed";
+  let tbdDismissed = new Set();
+  try { tbdDismissed = new Set(JSON.parse(localStorage.getItem(TBD_DISMISS_KEY) || "[]")); } catch (e) {}
+  let lastNoTime = [];
+  const tbdKey = (x) => [x.title, x.date, x.calendar].join("|");
+  function saveTbdDismissed() {
+    try { localStorage.setItem(TBD_DISMISS_KEY, JSON.stringify([...tbdDismissed])); } catch (e) {}
+  }
+
+  function renderNoTimeBanner(list) {
+    if (list) lastNoTime = list;
+    list = lastNoTime;
+    const el = $("tbdBanner");
+    // Forget deletions for events no longer listed
+    const keys = new Set(list.map(tbdKey));
+    const before = tbdDismissed.size;
+    tbdDismissed = new Set([...tbdDismissed].filter((k) => keys.has(k)));
+    if (tbdDismissed.size !== before) saveTbdDismissed();
+
+    const rest = list.filter((x) => !tbdDismissed.has(tbdKey(x)));
+    const hidden = list.length - rest.length;
+    $("tbdBar").hidden = !hidden;
+    $("tbdRestore").textContent = `Restore ${hidden} deleted no-time event${hidden === 1 ? "" : "s"}`;
+
+    if (!rest.length) { el.hidden = true; el.innerHTML = ""; return; }
+    const n = rest.length;
+    el.innerHTML = `<div class="logbanner-head">
+        <h2>${n} event${n === 1 ? " has" : "s have"} no time scheduled</h2>
+        ${n > 1 ? `<button type="button" data-all="1">Delete all</button>` : ""}
+      </div>
+      <div class="wrap"><table>
+        <thead><tr><th>Date</th><th>Event</th><th>Calendar</th><th><span class="sr-only">Delete</span></th></tr></thead>
+        <tbody>${rest.map((x) => `<tr><td>${escapeHtml(x.date)}</td><td class="t">${escapeHtml(x.title)}</td><td>${escapeHtml(x.calendar)}</td><td><button type="button" data-key="${escapeHtml(tbdKey(x))}" aria-label="Delete ${escapeHtml(x.title)} from this list">Delete</button></td></tr>`).join("")}</tbody>
+      </table></div>`;
+    el.hidden = false;
+  }
+
+  $("tbdBanner").addEventListener("click", (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    if (btn.dataset.all) lastNoTime.forEach((x) => tbdDismissed.add(tbdKey(x)));
+    else if (btn.dataset.key) tbdDismissed.add(btn.dataset.key);
+    else return;
+    saveTbdDismissed();
+    renderNoTimeBanner();
+  });
+  $("tbdRestore").addEventListener("click", () => { tbdDismissed = new Set(); saveTbdDismissed(); renderNoTimeBanner(); });
+
+  // Red banner listing today's card/port programs that didn't match any event
+  // Warnings the user has deleted from the banner (kept for today's rows only)
+  const LOG_DISMISS_KEY = "event-watcher-log-dismissed";
+  let logDismissed = new Set();
+  try { logDismissed = new Set(JSON.parse(localStorage.getItem(LOG_DISMISS_KEY) || "[]")); } catch (e) {}
+  // Rows tagged "Virtual" in column 7 of the card/port data (or with
+  // "virtual" in the card or port itself)
+  const isVirtual = (r) => !!r && (r.virtual || /virtual/i.test(String(r.cart || "") + " " + String(r.port || "")));
+  const logKey = (r) => [r.title, r.start.toISOString(), r.cart, r.port].join("|");
+  function saveDismissed() {
+    try { localStorage.setItem(LOG_DISMISS_KEY, JSON.stringify([...logDismissed])); } catch (e) {}
+  }
+
+  function renderLogBanner() {
+    const el = $("logBanner");
+    // Forget deletions for rows that are no longer in today's data
+    const todayKeys = new Set(logUnmatched.map(logKey));
+    const before = logDismissed.size;
+    logDismissed = new Set([...logDismissed].filter((k) => todayKeys.has(k)));
+    if (logDismissed.size !== before) saveDismissed();
+
+    const rest = logUnmatched.filter((r) => !logDismissed.has(logKey(r)));
+    const hidden = logUnmatched.length - rest.length;
+    $("logRestore").hidden = !hidden;
+    $("logRestore").textContent = `Restore ${hidden} deleted warning${hidden === 1 ? "" : "s"}`;
+
+    if (!rest.length) { el.hidden = true; el.innerHTML = ""; return; }
+    const n = rest.length;
+    el.innerHTML = `<div class="logbanner-head">
+        <h2>${n} card/port program${n === 1 ? " doesn't" : "s don't"} match any event</h2>
+        ${n > 1 ? `<button type="button" data-all="1">Delete all</button>` : ""}
+      </div>
+      <div class="wrap"><table>
+        <thead><tr><th>Start</th><th>End</th><th>Program</th><th>Card</th><th>Port</th><th><span class="sr-only">Delete</span></th></tr></thead>
+        <tbody>${rest.map((r) => `<tr><td>${escapeHtml(fmtTime(r.start))}</td><td>${escapeHtml(fmtTime(r.end))}</td><td class="t">${escapeHtml(r.title)}</td><td${isVirtual(r) ? ' class="virtual"' : ""}>${escapeHtml(r.cart)}</td><td${isVirtual(r) ? ' class="virtual"' : ""}>${escapeHtml(r.port)}</td><td><button type="button" data-key="${escapeHtml(logKey(r))}" aria-label="Delete warning for ${escapeHtml(r.title)}">Delete</button></td></tr>`).join("")}</tbody>
+      </table></div>`;
+    el.hidden = false;
+  }
+
+  $("logBanner").addEventListener("click", (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    if (btn.dataset.all) logUnmatched.forEach((r) => logDismissed.add(logKey(r)));
+    else if (btn.dataset.key) logDismissed.add(btn.dataset.key);
+    else return;
+    saveDismissed();
+    renderLogBanner();
+  });
+  $("logRestore").addEventListener("click", () => { logDismissed = new Set(); saveDismissed(); renderLogBanner(); });
+  const renderUnmatched = () => "";
+
+  function applyLog(text) {
+    logText = String(text || "");
+    try { localStorage.setItem(LOG_KEY, logText); } catch (e) {}
+    attachLog();
+    if (events.length) render();
+  }
+  $("logApply").addEventListener("click", () => applyLog($("logText").value));
+  // Separate import for the tab-delimited card and port file
+  $("logFile").addEventListener("change", (e) => {
+    const f = e.target.files[0];
+    e.target.value = "";
+    if (!f) return;
+    f.text().then((t) => {
+      if (VIA_HELPER) cardPortNote = "Imported " + f.name + "; switches back to the folder's file when it changes.";
+      $("logText").value = t;
+      applyLog(t);
+      if (!logToday.total) $("logBar").hidden = false, $("logStatus").textContent = "No usable rows found in " + f.name + ". Check that it's tab-delimited with a start time in column 10 and a duration in column 11.";
+    });
+  });
+  document.querySelectorAll('label[for="logFile"]').forEach((l) => l.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("logFile").click(); }
+  }));
+  $("logClear").addEventListener("click", () => { $("logText").value = ""; applyLog(""); });
+  $("logClear2").addEventListener("click", () => { $("logText").value = ""; applyLog(""); });
+  try { logText = localStorage.getItem(LOG_KEY) || ""; $("logText").value = logText; } catch (e) {}
+
+  // Pull the card/port .txt from the Start Event Watcher folder through the
+  // helper, every minute. A file you import or paste yourself stays until
+  // the folder's file changes.
+  const CARDPORT_CHECK_MS = 60000;
+  let lastCardPortKey = null;
+  async function checkCardPort() {
+    if (!VIA_HELPER) return;
+    try {
+      const r = await fetch("cardport", { cache: "no-store" });
+      if (r.status === 404) {
+        cardPortNote = ((await r.text()) || "No card/port .txt in the Event Watcher folder yet") + "; checking every minute.";
+        attachLog();
+        return;
+      }
+      if (!r.ok) throw new Error("helper answered " + r.status);
+      const name = r.headers.get("X-File-Name") || "card/port file";
+      const t = await r.text();
+      const key = name + "|" + (r.headers.get("X-File-Time") || "") + "|" + t.length;
+      const changed = key !== lastCardPortKey;
+      lastCardPortKey = key;
+      cardPortNote = "Auto-updated from " + name + ", checked " + fmtTime(new Date()) + ".";
+      if (changed && t !== logText) {
+        $("logText").value = t;
+        applyLog(t);
+      } else attachLog();
+    } catch (e) {
+      cardPortNote = "Couldn't read the card/port file (" + e.message + ").";
+      attachLog();
+    }
+  }
+
+  // Ended events move to a collapsible list at the bottom of the page
+  let endedOpen = false;
+  let renderedEnded = "";
+  const isEnded = (e, now) => stateOf(e, now).cls === "past";
+
+  function render() {
+    const list = visible();
+    const nowT = Date.now();
+    const ended = list.filter((e) => isEnded(e, nowT));
+    const current = list.filter((e) => !isEnded(e, nowT));
+    renderedEnded = ended.map((e) => e.id).join("\n");
+    const { main, other, ext } = split(current);
+    const q = $("search").value.trim();
+
+    $("schedule").innerHTML = !list.length
+      ? `<p class="empty">${q ? "No events match “" + escapeHtml(q) + "”. Clear the search to see everything." : "No events left in the list. Restore deleted events or import another CSV."}</p>`
+      : (ext.length
+          ? `<div class="top">
+              <section><h2 class="section-title">Jeff City</h2>${main.length ? renderList(main) : `<p class="empty">No Jeff City events to show.</p>`}</section>
+              <section><h2 class="section-title">External</h2>${renderList(ext)}</section>
+            </div>`
+          : (main.length ? renderList(main) : `<p class="empty">No Jeff City events to show.</p>`)) +
+        (other.length ? `<section class="bottom"><h2 class="section-title">Not Produced in Jeff City</h2>${renderList(other)}</section>` : "");
+    if (list.length && !current.length) {
+      $("schedule").innerHTML = `<p class="empty">All of today's events have ended.</p>`;
+    }
+    if (ended.length) {
+      $("schedule").insertAdjacentHTML("beforeend", `<details class="ended" id="endedList"${endedOpen ? " open" : ""}>
+        <summary><span class="section-title">Ended events</span> <span class="ended-count">${ended.length}</span></summary>
+        ${renderList(ended)}
+      </details>`);
+      $("endedList").addEventListener("toggle", (e) => { endedOpen = e.target.open; });
+    }
+    $("schedule").insertAdjacentHTML("beforeend", renderUnmatched());
+
+    const n = deleted.size;
+    $("restore").hidden = !n;
+    $("restore").textContent = `Restore ${n} deleted`;
+
+    const totalRows = Math.max(0, rows.length - (rows.length && rows[0].some((h) => /title|name|start|end/i.test(String(h))) ? 1 : 0));
+    const hiddenBits = [];
+    if (events.meta.excluded) hiddenBits.push(`${events.meta.excluded} ENGINEERING ON DUTY`);
+    if (events.meta.noTime) hiddenBits.push(`${events.meta.noTime} with no time scheduled`);
+    if (events.meta.notYet) hiddenBits.push(`${events.meta.notYet} with no time for another day`);
+    const del = events.filter((e) => deleted.has(e.id)).length;
+    if (del) hiddenBits.push(`${del} deleted`);
+    const filtered = events.length - del - list.length;
+    if (filtered > 0) hiddenBits.push(`${filtered} not matching the search`);
+    let msg = `Showing ${list.length} of ${totalRows} event${totalRows === 1 ? "" : "s"} from ${fileName}` + (hiddenBits.length ? ` (hidden: ${hiddenBits.join(", ")}).` : ".");
+    if (source === "feed" && feedUnreadable) msg += ` ${feedUnreadable} feed item${feedUnreadable === 1 ? " has" : "s have"} a start time that couldn't be read.`;
+    if (other.length) msg += ` ${other.length} under Not Produced in Jeff City.`;
+    if (ext.length) msg += ` ${ext.length} under External.`;
+    const noStream = list.filter((e) => e.listen.unmatched).length;
+    if (noStream) msg += ` ${noStream} event${noStream === 1 ? " has an LS resource" : "s have LS resources"} with no matching stream.`;
+    if (events.meta.noResources) msg += " No Resources column was found, so every event is in the main list.";
+    setStatus(msg, false);
+    tick();
+  }
+
+  // Fixed Prism assignments, shown as a tag like Card and Port. In a matchup the
+  // first team listed decides ("USC vs. Washington" gets USC's Prism).
+  const PRISM = [
+    { re: /\b(usc|southern\s+cal|trojans)\b/i, label: "Prism 4" },
+    { re: /\bohio\b(?!\s+st(?:ate|\.)?(?![a-z]))/i, label: "Prism 1" }, // Ohio, not Ohio State
+    { re: /\brutgers\b/i, label: "Prism 2" },
+    { re: /\b(southern\s+miss(?:issippi)?|so\.?\s*miss|usm)\b/i, label: "Prism 3" }  // Southern Miss / So Miss
+  ];
+  function prismFor(e) {
+    const m = String(e.title || "").match(/^(.*?)\s+(?:vs\.?|v\.?|@|at)\s+\S/i);
+    const texts = m ? [m[1]] : [e.title, e.calendar];
+    for (const t of texts) {
+      const hit = PRISM.find((p) => p.re.test(String(t || "")));
+      if (hit) return hit.label;
+    }
+    return "";
+  }
+  function prismChip(e) {
+    const label = prismFor(e);
+    return label ? `<span class="chip">${escapeHtml(label)}</span>` : "";
+  }
+
+  function renderList(list) {
+    const groups = new Map();
+    list.forEach((e) => {
+      const key = e.start && e.start.hasDate ? dayKey(e.start.date) : "none";
+      if (!groups.has(key)) groups.set(key, { label: key === "none" ? "" : fmtDay(e.start.date), items: [] });
+      groups.get(key).items.push(e);
+    });
+    const showHeadings = groups.size > 1 || !groups.has("none");
+    return [...groups.values()].map((g) => `
+      <section class="day">
+        ${showHeadings && g.label ? `<h3>${escapeHtml(g.label)}<span>${g.items.length} event${g.items.length === 1 ? "" : "s"}</span></h3>` : ""}
+        <ol class="events">
+          ${g.items.map((e) => `
+            <li class="event" data-id="${escapeHtml(e.id)}">
+              <div class="time">${escapeHtml(e.start ? fmtTime(e.start.date) : e.startRaw || "No start")}<span class="end">${escapeHtml(e.end ? fmtTime(e.end.date) : e.endRaw || (e.start ? "No end" : ""))}</span></div>
+              <div><p class="title">${escapeHtml(e.title)}</p><div class="state"></div>${e.log ? `
+                <div class="log" title="From card and port data: ${escapeHtml(e.log.title)}">
+                  ${prismChip(e)}
+                  ${isVirtual(e.log) ? `<span class="chip virtual virtual-tag">Virtual</span>` : ""}
+                  <span class="chip${isVirtual(e.log) ? " virtual" : ""}">Card ${escapeHtml(e.log.cart || "–")}</span>
+                  <span class="chip${isVirtual(e.log) ? " virtual" : ""}">Port ${escapeHtml(e.log.port || "–")}</span>
+                  ${logTimeChips(e)}
+                </div>` : prismChip(e) ? `<div class="log">${prismChip(e)}</div>` : ""}${eobHtml(e)}</div>
+              <div class="actions">
+                ${e.listen.links.map((l) => [[l.url, "Primary"], [l.url2, "Secondary"]].map(([u, kind]) =>
+                  `<a class="listen${kind === "Secondary" ? " secondary" : ""}" role="button" aria-pressed="false" data-url="${escapeHtml(u)}" data-label="${escapeHtml(l.label + " (" + kind + ")")}" data-name="${escapeHtml(l.name + " " + kind.toLowerCase())}" data-stream="${escapeHtml(l.name)}" href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(l.name)} ${kind.toLowerCase()} stream">${escapeHtml(l.label)} (${kind})</a>`).join("")).join("")}
+                ${e.listen.links.map((l) => `<button class="meterbtn" type="button" aria-pressed="false" data-url="${escapeHtml(l.url)}" data-label="${escapeHtml(e.listen.links.length > 1 ? "Meter: " + l.name : "Meter")}">${escapeHtml(e.listen.links.length > 1 ? "Meter: " + l.name : "Meter")}</button>`).join("")}
+                <button class="delete" type="button" data-id="${escapeHtml(e.id)}" aria-label="Delete ${escapeHtml(e.title)}">Delete</button>
+              </div>
+              ${closuresHtml(e)}
+              <div class="vus">${e.listen.links.map((l) => `
+                <div class="vu snap" data-url="${escapeHtml(l.url)}" hidden>
+                  <div class="vu-head"><span class="vu-name">${escapeHtml(l.name)} · level check</span><span class="vu-status"></span></div>
+                  <div class="vu-ch"><div class="vu-track"><div class="vu-mask"></div></div></div>
+                </div>
+                <div class="vu off live-meter" data-url="${escapeHtml(l.url)}" hidden>
+                  <div class="vu-head"><span class="vu-name">${escapeHtml(l.name)}</span><span class="vu-status"></span></div>
+                  <div class="vu-ch"><div class="vu-track"><div class="vu-mask"></div><div class="vu-peak"></div></div></div>
+                </div>`).join("")}</div>
+            </li>`).join("")}
+        </ol>
+      </section>`).join("");
+  }
+
+  // ---------- live updates ----------
+  function stateOf(e, now) {
+    if (!e.start) return { cls: "", text: "" };
+    const s = e.start.date.getTime(), en = e.end ? e.end.date.getTime() : null;
+    if (now < s) {
+      return s - now <= SOON_MS ? { cls: "soon", text: "Starts in " + fmtSpan(s - now) } : { cls: "", text: "" };
+    }
+    if (en === null) return { cls: "live", text: "Live", dot: true };
+    if (now >= en) return { cls: "past", text: "Ended" };
+    const left = en - now;
+    return { cls: left <= ENDING_MS ? "ending" : "live", text: "Live, " + fmtSpan(left) + " left", dot: true };
+  }
+
+  function tick() {
+    if (!events.length) return;
+    const now = Date.now();
+    const byId = new Map(events.map((e) => [e.id, e]));
+
+    document.querySelectorAll(".event").forEach((li) => {
+      const st = stateOf(byId.get(li.dataset.id), now);
+      li.className = "event" + (st.cls ? " " + st.cls : "");
+      const el = li.querySelector(".state");
+      const html = st.text ? (st.dot ? '<span class="live-dot" aria-hidden="true"></span>' : "") + escapeHtml(st.text) : "";
+      if (el.innerHTML !== html) el.innerHTML = html;
+      li.querySelectorAll(".vu.live-meter").forEach((v) => { v.hidden = st.cls === "past" || !realtime.has(v.dataset.url); });
+    });
+    // Re-render when an event has just ended so it moves to the Ended list
+    const endedNow = visible().filter((e) => isEnded(e, now)).map((e) => e.id).join("\n");
+    if (endedNow !== renderedEnded) { render(); return; }
+    syncMeters(now);
+    paintMeterButtons();
+    runSnapshots(now);
+    paintSnapshots(now);
+    checkAlerts(now);
+    if (source === "feed" && feedDay && dayKey(new Date(now)) !== feedDay) fetchFeed(); // new day: pull the new day's events
+    else if (source !== "feed" && builtDay && dayKey(new Date(now)) !== builtDay) { build(false); return; } // new day: reveal that day's no-time rows
+    pingStreams(now);
+    paintListen();
+
+    const list = events.filter((e) => !deleted.has(e.id));
+    const next = list.find((e) => e.start && e.start.date.getTime() > now);
+
+    const cd = $("countdown");
+    if (next) {
+      const ms = next.start.date.getTime() - now;
+      $("clock").textContent = fmtClock(ms);
+      // Every event starting at the same moment as the next one
+      const t0 = next.start.date.getTime();
+      const group = list.filter((e) => e.start && e.start.date.getTime() === t0);
+      $("nextLabel").textContent = (group.length > 1 ? group.length + " events" : "Next event") + " at " + fmtTime(next.start.date);
+      const html = group.map((e) => "<li>" + escapeHtml(e.title) + "</li>").join("");
+      if ($("nextTitle").innerHTML !== html) $("nextTitle").innerHTML = html;
+      cd.classList.toggle("soon", ms <= SOON_MS);
+      document.title = fmtClock(ms) + " until " + next.title + (group.length > 1 ? " +" + (group.length - 1) + " more" : "");
+    } else {
+      $("clock").textContent = "Done";
+      $("nextLabel").textContent = "No more upcoming events";
+      $("nextTitle").innerHTML = "";
+      cd.classList.remove("soon");
+      document.title = "Event watcher";
+    }
+  }
+  setInterval(tick, 1000);
+
+  // ---------- pop-up alerts when an event changes status ----------
+  const lastState = new Map(); // event id -> last seen state
+  const MAX_TOASTS = 6;
+
+  function checkAlerts(now) {
+    events.forEach((e) => {
+      if (deleted.has(e.id)) return;
+      const c = stateOf(e, now).cls;
+      const prev = lastState.get(e.id);
+      lastState.set(e.id, c);
+      if (prev === undefined || prev === c) return; // first look, or no change
+      let kind = null;
+      if (c === "soon") kind = "soon";
+      else if (c === "live" || (c === "ending" && prev !== "live")) kind = "live"; // short events go live already under an hour
+      else if (c === "ending") kind = "ending";
+      if (kind) raiseAlert(e, kind, now);
+    });
+  }
+
+  function raiseAlert(e, kind, now) {
+    const at = (d) => fmtTime(d);
+    let head, body;
+    if (kind === "soon") {
+      head = "Starting in " + fmtSpan(e.start.date - now);
+      body = e.title + " starts at " + at(e.start.date);
+    } else if (kind === "live") {
+      head = "Live now";
+      body = e.title + (e.end ? ", ends at " + at(e.end.date) + " (" + fmtSpan(e.end.date - now) + " left)" : "");
+    } else {
+      head = "Under 1 hour left";
+      body = e.title + " ends at " + at(e.end.date);
+    }
+    const box = $("toasts");
+    const t = document.createElement("div");
+    t.className = "toast " + (kind === "ending" ? "ending" : kind);
+    t.setAttribute("role", "alert");
+    t.innerHTML = "<strong></strong><button type='button'>Dismiss</button><p></p>";
+    t.querySelector("strong").textContent = head;
+    t.querySelector("p").textContent = body;
+    t.querySelector("button").addEventListener("click", () => t.remove());
+    box.appendChild(t);
+    while (box.children.length > MAX_TOASTS) box.firstElementChild.remove();
+
+    // Desktop notification too, if allowed
+    try {
+      if ("Notification" in window && Notification.permission === "granted") {
+        new Notification(head, { body, tag: e.id + "|" + kind });
+      }
+    } catch (err) {}
+  }
+
+  function showAlertsButton() {
+    const btn = $("alertsBtn");
+    let can = false;
+    try { can = "Notification" in window && Notification.permission === "default"; } catch (err) {}
+    btn.hidden = !can;
+  }
+  $("alertsBtn").addEventListener("click", async () => {
+    try { await Notification.requestPermission(); } catch (err) {}
+    showAlertsButton();
+  });
+  showAlertsButton();
+
+  // ---------- keep the PC awake while a schedule is loaded ----------
+  let wakeLock = null;
+  let wakeBlocked = false;
+  const AWAKE_KEY = "event-watcher-awake";
+  try { if (localStorage.getItem(AWAKE_KEY) === "off") $("awake").checked = false; } catch (err) {}
+
+  function showWake(text) {
+    $("awakeNote").textContent = text != null ? text : (wakeLock ? "(on)" : "");
+  }
+
+  async function updateWake() {
+    const want = $("awake").checked && events.length > 0 && document.visibilityState === "visible";
+    if (want && !wakeLock && !wakeBlocked) {
+      if (!("wakeLock" in navigator)) { wakeBlocked = true; return showWake("(not supported in this browser)"); }
+      try {
+        wakeLock = await navigator.wakeLock.request("screen");
+        wakeLock.addEventListener("release", () => { wakeLock = null; showWake(); });
+      } catch (err) {
+        if (err && err.name === "NotAllowedError") { wakeBlocked = true; return showWake("(blocked on this page)"); }
+      }
+    } else if (!want && wakeLock) {
+      try { await wakeLock.release(); } catch (err) {}
+      wakeLock = null;
+    }
+    showWake();
+  }
+  $("awake").addEventListener("change", () => {
+    try { localStorage.setItem(AWAKE_KEY, $("awake").checked ? "on" : "off"); } catch (err) {}
+    wakeBlocked = false;
+    updateWake();
+  });
+  document.addEventListener("visibilitychange", updateWake);
+  setInterval(updateWake, 30000); // re-acquire if the system dropped it
+
+  // ---------- export: start time + event name, grouped by start time ----------
+  // Rows for one section: optional day heading rows, then one row per event
+  // with its start time, and a blank row between each start-time group.
+  function exportSection(list) {
+    const out = [];
+    const days = new Map();
+    list.forEach((e) => {
+      const key = e.start && e.start.hasDate ? dayKey(e.start.date) : "none";
+      if (!days.has(key)) days.set(key, { label: key === "none" ? "" : fmtDay(e.start.date), items: [] });
+      days.get(key).items.push(e);
+    });
+    const showDays = days.size > 1 || !days.has("none");
+    days.forEach((d) => {
+      if (showDays && d.label) out.push([d.label, ""]);
+      const times = new Map();
+      d.items.forEach((e) => {
+        const k = e.start ? String(e.start.date.getTime()) : "raw:" + e.startRaw;
+        if (!times.has(k)) times.set(k, { label: e.start ? fmtTime(e.start.date) : (e.startRaw || "No start time"), names: [] });
+        times.get(k).names.push(e.title);
+      });
+      times.forEach((t) => {
+        t.names.forEach((n) => out.push([t.label, n]));
+        out.push(["", ""]);
+      });
+    });
+    return out;
+  }
+
+  $("export").addEventListener("click", () => {
+    const list = visible();
+    const { main, other, ext } = split(list);
+    const now = new Date();
+    let rowsOut = [["Start Time", "Event Name"], ["", ""]];
+    if (ext.length) rowsOut.push(["Jeff City", ""]);
+    rowsOut = rowsOut.concat(main.length ? exportSection(main) : [["No Jeff City events", ""], ["", ""]]);
+    if (ext.length) {
+      rowsOut.push(["External", ""]);
+      rowsOut = rowsOut.concat(exportSection(ext));
+    }
+    if (other.length) {
+      rowsOut.push(["Not Produced in Jeff City", ""]);
+      rowsOut = rowsOut.concat(exportSection(other));
+    }
+    while (rowsOut.length && rowsOut[rowsOut.length - 1].every((c) => c === "")) rowsOut.pop();
+    const csv = "\uFEFF" + Papa.unparse(rowsOut, { newline: "\r\n" }) + "\r\n"; // BOM so Excel reads accents correctly
+    const p = (n) => String(n).padStart(2, "0");
+    const name = `schedule-${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}.csv`;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 5000);
+    setStatus("Exported " + list.length + " event" + (list.length === 1 ? "" : "s") + " to " + name + ".", false);
+  });
+
+  // ---------- stream checks ----------
+  // Every Listen link for an event that hasn't ended is checked about once a
+  // minute. Two failed checks in a row turn its button red.
+  const PING_EVERY = 60000, PING_RETRY = 10000, PING_TIMEOUT = 15000, PING_PARALLEL = 3;
+  const pings = new Map(); // url -> { up: true|false|null, fails, nextAt, busy, checkedAt }
+  let pingsRunning = 0;
+
+  function linksToCheck(now) {
+    const urls = new Set();
+    events.forEach((e) => {
+      if (deleted.has(e.id) || !e.listen.links.length) return;
+      if (stateOf(e, now).cls === "past") return;
+      e.listen.links.forEach((l) => { urls.add(l.url); urls.add(l.url2); });
+    });
+    return urls;
+  }
+
+  function pingOnce(url) {
+    return new Promise((resolve) => {
+      const a = new Audio();
+      a.muted = true;
+      a.preload = "metadata";
+      let done = false;
+      const finish = (ok) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        a.removeAttribute("src");
+        a.load();
+        resolve(ok);
+      };
+      const timer = setTimeout(() => finish(false), PING_TIMEOUT);
+      a.addEventListener("loadedmetadata", () => finish(true), { once: true });
+      a.addEventListener("canplay", () => finish(true), { once: true });
+      a.addEventListener("error", () => finish(false), { once: true });
+      a.src = url;
+    });
+  }
+
+  function record(p, ok, now) {
+    p.checkedAt = now;
+    if (ok) { p.up = true; p.fails = 0; p.nextAt = now + PING_EVERY; }
+    else {
+      p.fails++;
+      if (p.fails >= 2) p.up = false;
+      p.nextAt = now + (p.fails >= 2 ? PING_EVERY / 2 : PING_RETRY);
+    }
+  }
+
+  function pingStreams(now) {
+    const want = linksToCheck(now);
+    pings.forEach((_, url) => { if (!want.has(url)) pings.delete(url); });
+    want.forEach((url) => {
+      if (!pings.has(url)) pings.set(url, { up: null, fails: 0, nextAt: 0, busy: false, checkedAt: 0 });
+      const p = pings.get(url);
+      // A running meter already knows whether the stream is up
+      const m = meters.get(url);
+      if (m && (m.status === "ok" || m.status === "offline-cors")) { p.up = true; p.fails = 0; p.checkedAt = now; p.nextAt = now + PING_EVERY; return; }
+      if (m && m.status === "offline") { p.up = false; p.checkedAt = now; return; }
+      if (p.busy || now < p.nextAt || pingsRunning >= PING_PARALLEL) return;
+      p.busy = true;
+      pingsRunning++;
+      pingOnce(url).then((ok) => {
+        pingsRunning--;
+        p.busy = false;
+        record(p, ok, Date.now());
+        paintListen();
+      });
+    });
+  }
+
+  function paintListen() {
+    document.querySelectorAll(".listen[data-url]").forEach((a) => {
+      const p = pings.get(a.dataset.url);
+      const down = !!p && p.up === false;
+      a.classList.toggle("down", down);
+      a.classList.toggle("up", !!p && p.up === true);
+      a.classList.toggle("checking", !!p && p.up === null && p.busy);
+      const name = a.title.replace(/ stream.*$/, "");
+      const when = p && p.checkedAt ? " (checked " + fmtTime(new Date(p.checkedAt)) + ")" : "";
+      const bricUrl = down ? bricFor(a.dataset.stream) : null;
+      a.title = name + " stream" + (down ? " is not responding" + when + (bricUrl ? ". Click to open BRIC Link at " + bricUrl.replace(/^https?:\/\//, "").replace(/\/$/, "") : ". No BRIC Link for this LS number") : p && p.up ? " is up" + when : "");
+      const inactive = down && !bricUrl;
+      a.classList.toggle("inactive", inactive);
+      if (inactive) a.setAttribute("aria-disabled", "true"); else a.removeAttribute("aria-disabled");
+      const playing = !!nowPlaying && nowPlaying.url === a.dataset.url;
+      a.classList.toggle("playing", playing);
+      a.setAttribute("aria-pressed", playing ? "true" : "false");
+      const label = a.dataset.label || a.textContent;
+      const failed = !playing && failedUrl === a.dataset.url;
+      a.classList.toggle("failed", failed);
+      const want = playing ? label.replace(/^Listen/, "Stop") : failed ? label.replace(/^Listen/, "Couldn't play") : label;
+      if (a.textContent !== want) a.textContent = want;
+    });
+    const down = [...pings.values()].filter((p) => p.up === false).length;
+    const note = $("streamsDown");
+    note.hidden = !down;
+    note.textContent = down ? down + " stream" + (down === 1 ? " is" : "s are") + " not responding." : "";
+  }
+
+  // ---------- BRIC Link fallback (from LSBricAddress.txt) ----------
+  // When a stream isn't responding, its Listen button opens the school's BRIC Link
+  // unit instead. Keys are school names without spaces or punctuation; "" is an
+  // entry listed without a number, which counts as LS 1.
+  const BRIC = {"army":{"1":"http://192.168.118.101/"},"ballstate":{"1":"http://192.168.185.101/","2":"http://192.168.229.102/","3":"http://192.168.185.102/"},"boisestate":{"1":"http://192.168.115.103/","2":"http://192.168.115.104/"},"bowlinggreen":{"":"http://192.168.112.101/"},"buffalo":{"1":"http://192.168.37.102/","2":"http://192.168.37.103/"},"butler":{"":"http://192.168.217.101/"},"cal":{"":"http://192.168.107.104/"},"calpoly":{"":"http://192.168.204.102/"},"centralmichigan":{"":"http://192.168.228.102/"},"charlotte":{"1":"http://192.168.63.102/"},"chattanooga":{"1":"http://192.168.121.103/","2":"http://192.168.121.104/"},"coloradostate":{"":"http://192.168.176.102/"},"davidson":{"":"http://192.168.64.101/"},"easternwashington":{"":"http://192.168.138.102/"},"evansville":{"":"http://192.168.26.103/"},"fresnostate":{"1":"http://192.168.114.101/","2":"http://192.168.114.102/"},"idaho":{"":"http://192.168.103.102/"},"illinoisstate":{"":"http://192.168.183.101/"},"latech":{"1":"http://192.168.111.101/","2":"http://192.168.111.102/"},"louisiana":{"1":"http://192.168.33.103/","2":"http://192.168.33.104/","3":"http://192.168.33.105/"},"marquette":{"":"http://192.168.178.102/"},"memphis":{"1":"http://192.168.119.101/","2":"http://192.168.119.102/"},"missouri":{"3":"http://174.34.36.243:81/"},"missouristate":{"2":"http://192.168.177.103/","1":"http://192.168.177.104/"},"montanastate":{"1":"http://192.168.116.103/","2":"http://192.168.116.104/"},"northdakotastate":{"1":"http://192.168.181.103/","2":"http://192.168.181.104/"},"nebraskaomaha":{"1":"http://192.168.215.103/","2":"http://192.168.215.104/"},"nevada":{"1":"http://192.168.32.102/","2":"http://192.168.32.103/","3":"http://192.168.196.101/"},"newhampshire":{"":"http://192.168.125.102/"},"newmexicostate":{"":"http://192.168.210.101/"},"northernarizona":{"":"http://192.168.199.102/"},"northernillinois":{"1":"http://192.168.182.103/","2":"http://192.168.182.104/"},"northerniowa":{"1":"http://192.168.92.103/","2":"http://192.168.92.104/"},"northtexas":{"":"http://192.168.189.102/"},"providence":{"1":"http://192.168.203.102/","2":"http://192.168.203.103/"},"southdakota":{"1":"http://192.168.124.103/","2":"http://192.168.124.104/"},"southdakotastate":{"1":"http://192.168.113.102/","2":"http://192.168.113.103/"},"southernillinois":{"1":"http://192.168.109.102/","2":"http://192.168.109.103/"},"southernmethodist":{"1":"http://192.168.106.101/","2":"http://192.168.133.101/"},"stanford":{"1":"http://192.168.107.102/"},"stcloudstate":{"":"http://192.168.38.102/"},"saintlouis":{"":"http://192.168.221.101/"},"temple":{"1":"http://192.168.117.102/","2":"http://192.168.179.102/"},"texasam":{"":"http://66.76.14.229:10108/"},"toledo":{"1":"http://192.168.120.103/","2":"http://192.168.120.104/"},"tulsa":{"":"http://192.168.126.101/"},"umass":{"1":"http://192.168.211.102/","2":"http://192.168.205.101/"},"unlv":{"":"http://192.168.230.102/"},"utah":{"":"http://192.168.231.101/"},"utahstate":{"":"http://192.168.127.102/"},"vcu":{"":"http://192.168.219.102/"},"vermont":{"1":"http://192.168.218.104/","2":"http://192.168.218.105/"},"xavier":{"":"http://192.168.180.101/"}};
+  function bricFor(streamName) {
+    const m = String(streamName || "").match(/^(.*)\s(\d+)$/);
+    if (!m) return null;
+    const units = BRIC[norm(m[1]).replace(/[^a-z0-9]/g, "")];
+    if (!units) return null;
+    // An entry without a number (e.g. NORTHTEXAS) is that school's LS 1 unit
+    return units[m[2]] || (m[2] === "1" ? units[""] : null) || null;
+  }
+
+  // ---------- in-page listening ----------
+  // Listen buttons play the stream right on the page, one at a time.
+  // Ctrl/Cmd/Shift-click or middle-click still opens it in a new tab.
+  const player = new Audio();
+  player.preload = "none";
+  let nowPlaying = null; // { url, name, title }
+  let failedUrl = null; // shows "Couldn't play" on the button briefly
+  function setPlayerState(text, bad) {
+    if (!bad || !nowPlaying) return;
+    failedUrl = nowPlaying.url;
+    stopStream();
+    setTimeout(() => { failedUrl = null; paintListen(); }, 5000);
+  }
+
+  function playStream(a) {
+    const li = a.closest(".event");
+    nowPlaying = {
+      url: a.dataset.url,
+      name: a.dataset.name ? a.dataset.name.replace(/ (primary|secondary)$/, " ($1)").replace(/\((\w)/, (m, c) => "(" + c.toUpperCase()) : a.dataset.label,
+      title: li ? li.querySelector(".title").textContent : ""
+    };
+    failedUrl = null;
+    player.src = nowPlaying.url;
+    player.play().catch((err) => {
+      if (err && err.name === "AbortError") return; // replaced by another stream
+      setPlayerState("Couldn't play this stream", true);
+    });
+    paintListen();
+  }
+
+  function stopStream() {
+    player.pause();
+    player.removeAttribute("src");
+    player.load();
+    nowPlaying = null;
+    paintListen();
+  }
+
+  player.addEventListener("playing", () => { if (nowPlaying) setPlayerState("Playing"); });
+  player.addEventListener("waiting", () => { if (nowPlaying) setPlayerState("Buffering"); });
+  player.addEventListener("error", () => { if (nowPlaying && player.getAttribute("src")) setPlayerState("Couldn't play this stream", true); });
+
+  $("schedule").addEventListener("click", (e) => {
+    const a = e.target.closest("a.listen");
+    if (!a || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    e.preventDefault();
+    const ping = pings.get(a.dataset.url);
+    const bricUrl = bricFor(a.dataset.stream);
+    if (ping && ping.up === false && !(nowPlaying && nowPlaying.url === a.dataset.url)) {
+      // Down: open the BRIC Link unit if this LS number has one; otherwise do nothing
+      if (bricUrl) window.open(bricUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (nowPlaying && nowPlaying.url === a.dataset.url) stopStream();
+    else playStream(a);
+  });
+
+  $("schedule").addEventListener("keydown", (e) => {
+    const a = e.target.closest && e.target.closest("a.listen");
+    if (a && e.key === " ") { e.preventDefault(); a.click(); }
+  });
+
+  // ---------- level meters ----------
+  // Runs only for streams of events that are starting soon or live.
+  // Audio is pulled silently; nothing plays out loud.
+  const FLOOR_DB = -60;
+  const SILENT_MS = 10000;
+  let audioCtx = null;
+  const meters = new Map(); // stream URL -> meter state
+
+  // Meters run only for streams you switch on, up to METER_MAX at once.
+  // (Browsers allow about 6 connections per server, so 4 leaves room for
+  // listening and the up/down checks.)
+  const METER_MAX = 4;
+  const METER_KEY = "event-watcher-meters-on";
+  let meterOn = new Set();
+  try { meterOn = new Set(JSON.parse(localStorage.getItem(METER_KEY) || "[]")); } catch (e) {}
+  const saveMeters = () => { try { localStorage.setItem(METER_KEY, JSON.stringify([...meterOn])); } catch (e) {} };
+
+  function wantedStreams(now) {
+    // Streams of events still running or upcoming; a meter whose events have
+    // all ended or been deleted switches itself off and frees its slot
+    const open = new Set();
+    events.forEach((e) => {
+      if (deleted.has(e.id) || !e.listen.links.length) return;
+      if (stateOf(e, now).cls === "past") return;
+      e.listen.links.forEach((l) => open.add(l.url));
+    });
+    if (events.length) {
+      let changed = false;
+      meterOn.forEach((u) => { if (!open.has(u)) { meterOn.delete(u); changed = true; } });
+      if (changed) saveMeters();
+    }
+    const pinned = [...meterOn].filter((u) => open.has(u));
+    // 4 or fewer live streams: all of them get real-time meters on their own.
+    // More than 4: only the ones you pin with Meter are real-time; the rest rotate.
+    const live = activeStreams(now);
+    liveCount = live.size;
+    if (ffMode()) {
+      // FFmpeg in the helper meters every live stream; the browser holds no connections
+      autoMode = true;
+      realtime = new Set([...live, ...pinned]);
+      return new Set();
+    }
+    autoMode = snapOn && live.size <= METER_MAX;
+    if (autoMode) {
+      const rt = new Set(live);
+      pinned.forEach((u) => { if (rt.size < METER_MAX) rt.add(u); });
+      realtime = rt;
+    } else {
+      realtime = new Set(pinned);
+    }
+    liveCount = live.size;
+    return realtime;
+  }
+
+  let autoMode = false, realtime = new Set(), liveCount = 0;
+  // Streams of events that are live or starting within 15 minutes
+  function activeStreams(now) {
+    const set = new Set();
+    events.forEach((e) => {
+      if (deleted.has(e.id) || !e.listen.links.length) return;
+      const c = stateOf(e, now).cls;
+      if (c === "soon" || c === "live" || c === "ending") e.listen.links.forEach((l) => set.add(l.url));
+    });
+    return set;
+  }
+
+  function paintMeterButtons() {
+    const full = meterOn.size >= METER_MAX;
+    // Mode note next to the level-meter checkbox
+    const note = $("meterMode");
+    const text = !snapOn ? "" : ffMode()
+      ? (liveCount ? `FFmpeg: real-time on all ${liveCount} live stream${liveCount === 1 ? "" : "s"}` : "FFmpeg ready")
+      : autoMode
+      ? (liveCount ? `Real-time on all ${liveCount} live stream${liveCount === 1 ? "" : "s"}` : "")
+      : `${liveCount} live streams: ${[...realtime].length} pinned real-time, the rest rotate. Use Meter to pin up to ${METER_MAX}.`;
+    if (note.textContent !== text) note.textContent = text;
+    document.querySelectorAll(".meterbtn").forEach((b) => {
+      // Pinning is only needed when the meters are rotating
+      b.hidden = autoMode;
+      const on = meterOn.has(b.dataset.url);
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+      const label = (on ? "✓ " : "") + b.dataset.label;
+      if (b.textContent !== label) b.textContent = label;
+      const blocked = !on && full;
+      b.disabled = blocked;
+      b.title = blocked ? `${METER_MAX} meters are on. Turn one off to use this one.` :
+        on ? "Turn this level meter off" : `Show a level meter (${meterOn.size} of ${METER_MAX} on)`;
+    });
+  }
+
+  $("schedule").addEventListener("click", (e) => {
+    const b = e.target.closest(".meterbtn");
+    if (!b || b.disabled) return;
+    const u = b.dataset.url;
+    if (meterOn.has(u)) meterOn.delete(u);
+    else if (meterOn.size < METER_MAX) meterOn.add(u);
+    saveMeters();
+    paintMeterButtons();
+    tick();
+  });
+
+  function syncMeters(now) {
+    const want = wantedStreams(now);
+    meters.forEach((m, url) => { if (!want.has(url)) stopMeter(url); });
+    want.forEach((url) => {
+      let m = meters.get(url);
+      if (!m) { m = { status: "idle", db: [-Infinity, -Infinity], shown: [0, 0], peak: [0, 0], peakAt: [0, 0], lastSound: now }; meters.set(url, m); }
+      if (!audioCtx || audioCtx.state !== "running") { if (!m.audio) m.status = "needs-click"; return; }
+      if (m.status === "needs-click" || m.status === "idle" || (m.status === "offline" && now >= m.retryAt)) connect(url, m);
+    });
+  }
+
+  function connect(url, m) {
+    teardown(m);
+    m.status = "connecting";
+    m.lastSound = Date.now();
+    const a = new Audio();
+    a.crossOrigin = "anonymous"; // required for the browser to share levels
+    a.preload = "auto";
+    a.src = url;
+    try {
+      const src = audioCtx.createMediaElementSource(a);
+      const split = audioCtx.createChannelSplitter(2);
+      const an = [audioCtx.createAnalyser(), audioCtx.createAnalyser()];
+      const mute = audioCtx.createGain();
+      mute.gain.value = 0;
+      src.connect(split);
+      an.forEach((x, i) => { x.fftSize = 2048; split.connect(x, i); x.connect(mute); });
+      mute.connect(audioCtx.destination);
+      Object.assign(m, { audio: a, nodes: [src, split, mute, ...an], an, buf: new Float32Array(2048) });
+    } catch (err) { m.status = "offline"; m.retryAt = Date.now() + 30000; return; }
+    a.addEventListener("playing", () => { if (m.audio === a) m.status = "ok"; });
+    a.addEventListener("error", () => { if (m.audio === a) { teardown(m); probe(url, m); } });
+    a.addEventListener("ended", () => { if (m.audio === a) { teardown(m); m.status = "offline"; m.retryAt = Date.now() + 10000; } });
+    a.play().catch((err) => {
+      if (m.audio !== a) return;
+      if (err && err.name === "NotAllowedError") { teardown(m); m.status = "needs-click"; }
+    });
+  }
+
+  // The level-reading connection failed. Check whether the stream plays at all,
+  // so the meter can say "levels unavailable" versus "offline".
+  function probe(url, m) {
+    m.status = "checking";
+    const p = new Audio();
+    p.muted = true;
+    p.src = url;
+    let settled = false;
+    const done = (st) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      p.pause(); p.removeAttribute("src"); p.load();
+      if (meters.get(url) !== m) return;
+      m.status = st;
+      m.retryAt = Date.now() + (st === "offline" ? 30000 : 10 * 60000);
+      if (st === "no-cors") m.status = "offline-cors";
+    };
+    const timer = setTimeout(() => done("offline"), 15000);
+    p.addEventListener("playing", () => done("no-cors"), { once: true });
+    p.addEventListener("error", () => done("offline"), { once: true });
+    p.play().catch(() => {});
+  }
+
+  function teardown(m) {
+    if (m.audio) { m.audio.pause(); m.audio.removeAttribute("src"); m.audio.load(); }
+    (m.nodes || []).forEach((n) => { try { n.disconnect(); } catch (e) {} });
+    m.audio = null; m.nodes = null; m.an = null;
+    m.db = [-Infinity, -Infinity];
+  }
+
+  function stopMeter(url) {
+    const m = meters.get(url);
+    if (m) teardown(m);
+    meters.delete(url);
+  }
+
+  // Browsers only allow audio after a click or key press on the page.
+  function unlockAudio() {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state !== "running") audioCtx.resume().then(() => syncMeters(Date.now()));
+      else syncMeters(Date.now());
+    } catch (e) {}
+  }
+  ["pointerdown", "keydown"].forEach((t) => document.addEventListener(t, unlockAudio, { capture: true }));
+
+  // Start the meters on their own when the browser allows audio without a click
+  // (Start Event Watcher opens the browser with that allowed).
+  function autoStartAudio() {
+    try {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        audioCtx.addEventListener("statechange", () => { if (audioCtx.state === "running") syncMeters(Date.now()); });
+      }
+      if (audioCtx.state !== "running") audioCtx.resume().catch(() => {});
+    } catch (e) {}
+  }
+  autoStartAudio();
+
+  function channelDb(an, buf) {
+    an.getFloatTimeDomainData(buf);
+    let sum = 0;
+    for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+    const rms = Math.sqrt(sum / buf.length);
+    return rms > 0 ? 20 * Math.log10(rms) : -Infinity;
+  }
+
+  const STATUS_TEXT = {
+    "needs-click": ["Click anywhere on the page to start levels", false],
+    "idle": ["Waiting", false],
+    "connecting": ["Connecting", false],
+    "checking": ["Checking stream", false],
+    "offline": ["Stream offline or unreachable, retrying", true],
+    "offline-cors": ["Levels unavailable for this stream", true]
+  };
+
+  function drawMeters() {
+    const now = performance.now();
+    meters.forEach((m) => {
+      if (m.status !== "ok" || !m.an) return;
+      let l = channelDb(m.an[0], m.buf), r = channelDb(m.an[1], m.buf);
+      // Feeds are mono: one meter, using whichever channel carries the signal
+      const level = Math.max(l, r);
+      m.db = [level];
+      if (level > -50) m.lastSound = Date.now();
+    });
+    document.querySelectorAll(".vu.live-meter:not([hidden])").forEach((vu) => {
+      const m = (ffMode() ? ffMeters : meters).get(vu.dataset.url);
+      const statusEl = vu.querySelector(".vu-status");
+      let text = "", bad = false;
+      if (!m) { text = "Waiting"; }
+      else if (m.status === "ok") {
+        if (Date.now() - m.lastSound > SILENT_MS) { text = "No audio"; bad = true; }
+      } else [text, bad] = STATUS_TEXT[m.status] || ["", false];
+      // FFmpeg tells us why a stream failed; show it so the cause is visible
+      if (m && m.error && m.status === "offline") text = "Offline: " + m.error.replace(/^\[[^\]]*\]\s*/, "").slice(0, 110);
+      statusEl.title = m && m.error ? m.error : "";
+      if (statusEl.textContent !== text) statusEl.textContent = text;
+      statusEl.classList.toggle("bad", bad);
+      const on = !!m && m.status === "ok";
+      vu.classList.toggle("off", !on);
+      vu.querySelectorAll(".vu-ch").forEach((ch, i) => {
+        let pct = 0;
+        if (on) {
+          const target = Math.max(0, Math.min(1, (m.db[i] - FLOOR_DB) / -FLOOR_DB));
+          m.shown[i] = target > m.shown[i] ? target : Math.max(target, m.shown[i] - 0.02); // fast rise, slow fall
+          pct = m.shown[i];
+          if (pct >= m.peak[i] || now - m.peakAt[i] > 1500) { m.peak[i] = pct; m.peakAt[i] = now; }
+        }
+        ch.querySelector(".vu-mask").style.width = (100 - pct * 100).toFixed(1) + "%";
+        const pk = ch.querySelector(".vu-peak");
+        pk.style.left = "calc(" + ((on ? m.peak[i] : 0) * 100).toFixed(1) + "% - 2px)";
+        pk.style.opacity = on && m.peak[i] > 0.02 ? 1 : 0;
+      });
+    });
+    requestAnimationFrame(drawMeters);
+  }
+  requestAnimationFrame(drawMeters);
+
+  // ---------- FFmpeg levels (through the Start Event Watcher helper) ----------
+  // The helper runs FFmpeg for every live stream and reports their levels, so
+  // there's no limit on how many meters show at once.
+  const SOURCE_KEY = "event-watcher-meter-source";
+  const ffMeters = new Map(); // url -> meter-like state for drawMeters
+  let ffAvailable = false, ffPolling = false;
+  let meterSource = "browser";
+  try { meterSource = localStorage.getItem(SOURCE_KEY) || "browser"; } catch (e) {}
+  const ffMode = () => meterSource === "ffmpeg" && ffAvailable && snapOn;
+
+  function showSourceChoice() {
+    const sel = $("meterSource");
+    sel.querySelector('option[value="ffmpeg"]').disabled = !ffAvailable;
+    sel.value = meterSource === "ffmpeg" && ffAvailable ? "ffmpeg" : "browser";
+    sel.title = ffAvailable ? "FFmpeg meters every live stream through the helper"
+      : VIA_HELPER ? "FFmpeg wasn't found by the helper. Set its path in start-event-watcher.ps1."
+      : "Open the watcher with Start Event Watcher.bat to use FFmpeg";
+  }
+  $("meterSource").addEventListener("change", () => {
+    meterSource = $("meterSource").value;
+    try { localStorage.setItem(SOURCE_KEY, meterSource); } catch (e) {}
+    ffMeters.clear();
+    tick();
+  });
+
+  async function checkFfmpeg() {
+    if (!VIA_HELPER) { ffAvailable = false; showSourceChoice(); return; }
+    try {
+      const r = await fetch("levels/status", { cache: "no-store" });
+      ffAvailable = r.ok && !!(await r.json()).ffmpeg;
+    } catch (e) { ffAvailable = false; }
+    showSourceChoice();
+  }
+
+  async function pollLevels() {
+    if (!ffMode() || ffPolling || !realtime.size) return;
+    ffPolling = true;
+    const urls = [...realtime];
+    try {
+      const r = await fetch("levels", { method: "POST", body: urls.join("\n"), cache: "no-store" });
+      if (!r.ok) throw new Error("levels " + r.status);
+      const data = await r.json();
+      const now = Date.now();
+      urls.forEach((u) => {
+        const d = data[u];
+        let m = ffMeters.get(u);
+        if (!m) { m = { status: "connecting", db: [-Infinity], shown: [0], peak: [0], peakAt: [0], lastSound: now }; ffMeters.set(u, m); }
+        m.status = d ? d.status : "connecting";
+        m.error = d && d.error ? d.error : "";
+        if (d && d.status === "ok" && typeof d.db === "number") {
+          m.db = [d.db];
+          if (d.db > -50) m.lastSound = now;
+        }
+      });
+      [...ffMeters.keys()].forEach((u) => { if (!realtime.has(u)) ffMeters.delete(u); });
+    } catch (e) {
+      ffMeters.forEach((m) => { m.status = "offline"; });
+    } finally {
+      ffPolling = false;
+    }
+  }
+  setInterval(pollLevels, 250);
+  checkFfmpeg();
+  setInterval(checkFfmpeg, 60000);
+
+  // ---------- rotating level snapshots ----------
+  // Every stream of an event that's live or starting within 15 minutes gets a
+  // short level check in turn (a few seconds each, two at a time), so you see
+  // the last level for all of them without holding a connection open for each.
+  // Checks use the secondary server so they don't compete with meters,
+  // listening and checks on the primary server.
+  const SNAP_PARALLEL = 2;
+  const SNAP_LISTEN_MS = 4000;     // how long each check listens
+  const SNAP_TIMEOUT_MS = 12000;   // give up on a stream that doesn't start
+  const SNAP_KEY = "event-watcher-snapshots";
+  const snaps = new Map();         // primary url -> { db, at, status }
+  let snapQueue = [];
+  let snapRunning = 0;
+  let snapOn = true;
+  try { snapOn = localStorage.getItem(SNAP_KEY) !== "off"; } catch (e) {}
+  $("snapToggle").checked = snapOn;
+  $("snapToggle").addEventListener("change", () => {
+    snapOn = $("snapToggle").checked;
+    try { localStorage.setItem(SNAP_KEY, snapOn ? "on" : "off"); } catch (e) {}
+    tick();
+  });
+
+  // Streams to check: active events, not already on a live meter
+  function snapCandidates(now) {
+    const list = new Map();
+    events.forEach((e) => {
+      if (deleted.has(e.id) || !e.listen.links.length) return;
+      const c = stateOf(e, now).cls;
+      if (c !== "soon" && c !== "live" && c !== "ending") return;
+      e.listen.links.forEach((l) => { if (!realtime.has(l.url)) list.set(l.url, l); });
+    });
+    return list;
+  }
+
+  function runSnapshots(now) {
+    if (!snapOn || autoMode || ffMode() || !audioCtx || audioCtx.state !== "running") return;
+    const cands = snapCandidates(now);
+    // Oldest check first; never-checked streams go to the front
+    const busy = new Set(snapQueue);
+    while (snapRunning < SNAP_PARALLEL) {
+      const next = [...cands.values()]
+        .filter((l) => !busy.has(l.url))
+        .sort((a, b) => ((snaps.get(a.url) || {}).at || 0) - ((snaps.get(b.url) || {}).at || 0))[0];
+      if (!next) break;
+      const last = snaps.get(next.url);
+      if (last && now - last.at < 15000) break; // don't re-check sooner than every 15 s
+      busy.add(next.url);
+      snapQueue.push(next.url);
+      snapRunning++;
+      snapshot(next).finally(() => {
+        snapRunning--;
+        snapQueue = snapQueue.filter((u) => u !== next.url);
+      });
+    }
+  }
+
+  // Listen to one stream for a few seconds and keep its loudest reading
+  function snapshot(link) {
+    return new Promise((resolve) => {
+      const tryUrl = (src, fallback) => {
+        const a = new Audio();
+        a.crossOrigin = "anonymous";
+        a.src = src;
+        let nodes = [], done = false, sampler = null;
+        let loudest = -Infinity;
+        const finish = (status) => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer); clearInterval(sampler);
+          a.pause(); a.removeAttribute("src"); a.load();
+          nodes.forEach((n) => { try { n.disconnect(); } catch (e) {} });
+          if (status === "retry" && fallback) return tryUrl(fallback, null);
+          snaps.set(link.url, { db: loudest, at: Date.now(), status: status === "retry" ? "offline" : status });
+          resolve();
+        };
+        const timer = setTimeout(() => finish("retry"), SNAP_TIMEOUT_MS);
+        try {
+          const srcNode = audioCtx.createMediaElementSource(a);
+          const split = audioCtx.createChannelSplitter(2);
+          const an = [audioCtx.createAnalyser(), audioCtx.createAnalyser()];
+          const mute = audioCtx.createGain(); mute.gain.value = 0;
+          srcNode.connect(split);
+          an.forEach((x, i) => { x.fftSize = 2048; split.connect(x, i); x.connect(mute); });
+          mute.connect(audioCtx.destination);
+          nodes = [srcNode, split, mute, ...an];
+          const buf = new Float32Array(2048);
+          a.addEventListener("playing", () => {
+            sampler = setInterval(() => {
+              loudest = Math.max(loudest, channelDb(an[0], buf), channelDb(an[1], buf));
+            }, 100);
+            setTimeout(() => finish(loudest > -50 ? "ok" : "silent"), SNAP_LISTEN_MS);
+          }, { once: true });
+          a.addEventListener("error", () => finish("retry"), { once: true });
+          a.play().catch(() => {});
+        } catch (e) { finish("retry"); }
+      };
+      tryUrl(link.url2 || link.url, link.url2 ? link.url : null);
+    });
+  }
+
+  function agoText(ms) {
+    const s = Math.max(0, Math.round(ms / 1000));
+    return s < 60 ? s + "s ago" : Math.floor(s / 60) + "m " + (s % 60) + "s ago";
+  }
+
+  function paintSnapshots(now) {
+    const running = !!audioCtx && audioCtx.state === "running";
+    document.querySelectorAll(".event").forEach((li) => {
+      const e = events.find((x) => x.id === li.dataset.id);
+      const c = e ? stateOf(e, now).cls : "";
+      const active = c === "soon" || c === "live" || c === "ending";
+      li.querySelectorAll(".snap").forEach((el) => {
+        const show = snapOn && !autoMode && active && !realtime.has(el.dataset.url);
+        el.hidden = !show;
+        if (!show) return;
+        const s = snaps.get(el.dataset.url);
+        let text, bad = false, pct = 0;
+        if (!running) text = "Click anywhere on the page to start level checks";
+        else if (!s) text = "Waiting for first check";
+        else if (s.status === "offline") { text = "Stream offline (checked " + agoText(now - s.at) + ")"; bad = true; }
+        else if (s.status === "silent") { text = "No audio (checked " + agoText(now - s.at) + ")"; bad = true; }
+        else { text = "Checked " + agoText(now - s.at); pct = Math.max(0, Math.min(1, (s.db - FLOOR_DB) / -FLOOR_DB)); }
+        const st = el.querySelector(".vu-status");
+        if (st.textContent !== text) st.textContent = text;
+        st.classList.toggle("bad", bad);
+        el.querySelector(".vu-mask").style.width = (100 - pct * 100).toFixed(1) + "%";
+      });
+    });
+  }
+
+  function setStatus(text, isError) {
+    const el = $("status");
+    el.textContent = text;
+    el.classList.toggle("error", !!isError);
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  const hadSaved = restoreSaved();
+  checkClosureLog();
+  setInterval(checkClosureLog, CLOSURE_CHECK_MS);
+  checkCardPort();
+  setInterval(checkCardPort, CARDPORT_CHECK_MS);
+  if (!hadSaved || source === "feed") fetchFeed();
+  else setFeedStatus("Showing " + fileName + ". Click Load today's feed to switch to the live feed.");
+})();
+</script>
+</body>
+</html>
